@@ -811,8 +811,7 @@ function vRapport(){
 
  /* daglijst */
  const allDays=[];{let d=P.startDate;if(d){while(d<=t){allDays.push(d);d=addDays(d,1)}}}
- const hasData=allDays.some(d=>{const r=ST.days[d];return(r&&r.scores&&r.scores.some(x=>x>0))||liveEntries().some(e=>e.date===d)});
- if(hasData){
+ if(allDays.length){
   h+='<div class="card"><h2>Alle dagen</h2><div class="tbl-wrap"><table><tr><th>Datum</th><th>Dag</th><th>Eten</th><th>Score</th></tr>';
   allDays.forEach(d=>{
    const row=rowFor(d),rec=ST.days[d]||{},mx=dayMax(d);
