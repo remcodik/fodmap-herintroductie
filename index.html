@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="FODMaP">
+<title>FODMaP Herintroductie</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2a1d;--card:#fff;--mut:#667366;--ln:#dde3da;--g:#2e7d32;--r:#c62828;--o:#ef8f00;--b:#1565c0}
+@media(prefers-color-scheme:dark){:root{--bg:#141a14;--fg:#e6ece6;--card:#1e271e;--mut:#9aa89a;--ln:#33402f}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--fg)}
+header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--ln);padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top));z-index:5}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}h1{font-size:17px;margin:0 0 6px}
+nav{display:flex;gap:6px}nav button{flex:1}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:8px 10px}
+button{cursor:pointer}button.on,button.pri{background:var(--g);color:#fff;border-color:var(--g)}button.dng{color:var(--r)}
+main{padding:12px;max-width:760px;margin:0 auto;padding-bottom:60px}.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:12px;margin-bottom:12px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}.row>input:not([type=checkbox]),.row>select{flex:1;min-width:90px}
+.badge{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;color:#fff}
+.rood{background:var(--r)}.groen{background:var(--g)}.beperkt{background:var(--o)}.onbekend{background:#78909c}.test{background:var(--b)}.pauze{background:#78909c}.rust{background:#6a1b9a}
+.mut{color:var(--mut);font-size:13px}.err{color:var(--r)}.warn{color:#b26a00}
+table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid var(--ln);padding:4px 6px;text-align:left;vertical-align:top}
+.step{display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--ln)}.step .d{width:92px;flex:none}.step .t{flex:1}
+.issues{border-left:4px solid var(--o);padding-left:10px;margin:8px 0}h2{font-size:16px;margin:0 0 6px}
+.status{border-radius:12px;padding:12px;margin-bottom:12px;border:2px solid var(--ln);background:var(--card)}
+.status.groen{border-color:var(--g)}.status.oranje{border-color:var(--o)}.status.rood{border-color:var(--r)}.status.pauze,.status.rust,.status.info{border-color:var(--ln)}
+.status h2{font-size:18px}.status.groen h2{color:var(--g)}.status.oranje h2{color:var(--o)}.status.rood h2{color:var(--r)}
+.banner{background:#fff3cd;color:#5c4300;border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+.toast{position:fixed;left:12px;right:12px;bottom:12px;background:#333;color:#fff;border-radius:10px;padding:10px 14px;z-index:9}
+.center{max-width:420px;margin:60px auto;text-align:center}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+</head>
+<body>
+<header><div class="top"><h1>FODMaP herintroductie</h1><span id="sync" class="mut"></span></div><nav id="nav"></nav></header>
+<main id="app"></main>
+
+<!-- ============ LOGICA (geen DOM, geen Firebase) ============ -->
+<script id="logic">
+const SCHEMA=2;
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const today=()=>iso(new Date());
+const fmt=s=>parse(s).toLocaleDateString('nl-NL',{weekday:'short',day:'numeric',month:'short'});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clone=o=>JSON.parse(JSON.stringify(o));
+const SYM=['Opgeblazen gevoel','Winderigheid','Misselijkheid','Dunne ontlasting','Verstopping','Buikpijn/krampen'];
+const FACT=['Stress','Slecht geslapen','Koffie afwijkend','Alcohol afwijkend','Uit eten'];
+
+/* startset regels: uit de Martini-brochure gelezen, controleer de kleuren zelf */
+const R=(arr,status,limit)=>arr.map(t=>({term:t,status,limit:limit||''}));
+const SEED_RULES=[
+...R(['ui','uien','knoflook','sjalot','bloemkool','champignon','paddenstoel','avocado','asperge','artisjok','bleekselderij','doperwt','peulen','sugar snaps','spruitjes','rode biet','zuurkool','tuinbonen','appel','peer','peren','mango','perzik','pruim','kers','abrikoos','nectarine','watermeloen','vijg','granaatappel','braam','lychee','kaki','dadel','honing','agavesiroop','fructose','sorbitol','xylitol','mannitol','maltitol','isomalt','lactitol','inuline','oligofructose','fos','melk','yoghurt','kwark','vla','room','slagroom','ijs','karnemelk','kefir','roomkaas','ricotta','cottage cheese','hüttenkäse','smeerkaas','smeltkaas','verse kaas','geitenkaas','schapenkaas','tarwe','brood','rogge','gerst','couscous','bulgur','pasta','pizza','bladerdeeg','muesli','ciabatta','focaccia','croissant','naan','kikkererwten','linzen','bonen','kapucijners','sojabonen','sojamelk','spliterwten','flageolets','havermelk','lactose','botermelk','melkpoeder','wei','cashew','pistache','mais uit blik','witte prei','knäckebröd','beschuit','gehaktbal','schnitzel','kipnuggets','bitterbal','kroket','frikandel','lekkerbek','oliebol','probiotica','yakult','actimel','cider','rum','port','likeur'],'rood'),
+...R(['broccoli','witte kool','rode kool','groene paprika','venkel','sperziebonen','sperzieboontjes'],'beperkt','max 1 opscheplepel'),
+...R(['linzen uit blik','linzen uit pot'],'beperkt','max 3 eetlepels'),
+...R(['banaan'],'beperkt','max 1/3'),
+...R(['grapefruit'],'beperkt','max 1/4'),
+...R(['mozzarella','feta','brie','camembert','okra','kokosmelk'],'beperkt','beperkt'),
+...R(['amandel','amandelen','hazelnoot','hazelnoten'],'beperkt','< 10 stuks'),
+...R(['pinda','pindas',"pinda's",'walnoot','walnoten','macadamia','pecannoot','kastanje','chiazaad','lijnzaad','sesamzaad','zonnebloempitten','pompoenpitten'],'beperkt','max klein handje'),
+...R(['lactosevrije melk','lactosevrije yoghurt','lactosevrije kwark','lactosevrije vla','lactosevrije pudding','glutenvrij brood','glutenvrije pasta','glutenvrije crackers','glutenvrije croissant','glutenvrije pizza','speltbrood','champignons uit blik','mais','amandelmelk','rijstmelk','kokosyoghurt','mihoen','rijstnoedels','quinoapasta','goudse kaas','goudse','cheddar','edammer','emmenthaler','parmezaan','harde kaas','kaas','havermout','cornflakes','maiswafel','rijstwafel','quinoa','rijst','aardappel','aardappelen','patat','chips','popcorn','tomaat','tomaten','wortel','worteltjes','komkommer','courgette','spinazie','sla','paprika','rode paprika','witlof','andijvie','aubergine','pompoen','groen van prei','aardbei','aardbeien','ananas','bosbes','druiven','kiwi','mandarijn','sinaasappel','framboos','citroen','limoen','meloen','ei','eieren','kip','kipfilet','vlees','vis','ham','tofu','tempeh','pindakaas','suiker','ahornsiroop','stroop','pure chocolade','mayonaise','mosterd','ketchup','sojasaus','olie','margarine','halvarine','boter','koffie','thee','wodka','vodka','gin','whiskey','wijn','bier'],'groen')
+];
+
+/* sjablonen voor herintroductieblokken */
+const TD=d=>({kind:'test',dose:d}),PD=()=>({kind:'pauze',dose:''});
+const wk=(a,b,c)=>[TD(a),PD(),TD(b),PD(),c?TD(c):PD(),PD(),PD()];
+const TEMPL={
+ lactose:()=>({name:'Lactose',keys:'melk,yoghurt,vla',mode:'alternate',steps:wk('150 ml melk, halfvolle yoghurt of vanillevla','250 ml melk, halfvolle yoghurt of vanillevla')}),
+ fructose:()=>({name:'Fructose',keys:'honing,mango',mode:'alternate',steps:wk('1 dessertlepel honing of ½ mango','2 dessertlepels honing of 1 mango')}),
+ mannitol_bloemkool:()=>({name:'Mannitol (bloemkool)',keys:'bloemkool',mode:'alternate',steps:wk('2 opscheplepels bloemkool','3 opscheplepels bloemkool')}),
+ mannitol_champ:()=>({name:'Mannitol (champignons/abrikozen)',keys:'champignon,abrikoos',mode:'alternate',steps:wk('½ kopje champignons of 4 gedroogde abrikozen','1 kopje champignons of 6 gedroogde abrikozen')}),
+ sorbitol:()=>({name:'Sorbitol (avocado)',keys:'avocado',mode:'alternate',steps:wk('½ avocado','1 avocado')}),
+ fructanen_brochure:()=>({name:'Fructanen (tarwe)',keys:'tarwe,brood,pasta',mode:'alternate',steps:wk('1 snee tarwebrood of 3 eetlepels tarwepasta','2 sneden tarwebrood of 6 eetlepels tarwepasta','3 sneden tarwebrood of 9 eetlepels tarwepasta (optioneel)')}),
+ tarwe_p34:()=>({name:'Fructanen: tarwe (3 dagen)',keys:'tarwe,brood,pasta,muesli',mode:'consecutive',steps:[TD('2 el muesli of 1 snee tarwebrood of 40 g ongekookte pasta'),TD('4 el muesli of 2 sneden of 80 g ongekookte pasta'),TD('6 el muesli of 3 sneden of 120 g ongekookte pasta'),PD(),PD()]}),
+ ui_p34:()=>({name:'Fructanen: ui (3 dagen)',keys:'ui,uien',mode:'consecutive',steps:[TD('3 ringetjes verse ui (18 g)'),TD('6 ringetjes verse ui (36 g)'),TD('½ verse ui (45 g), mag verdeeld over de dag'),PD(),PD()]}),
+ knoflook_p34:()=>({name:'Fructanen: knoflook (3 dagen)',keys:'knoflook',mode:'consecutive',steps:[TD('½ teentje knoflook'),TD('1 teentje knoflook (3 g) in 1 portie'),TD('2 teentjes knoflook, mag verdeeld over de dag'),PD(),PD()]}),
+ gos:()=>({name:'Galactanen (peulvruchten)',keys:'bonen,kikkererwten,kapucijners,linzen',mode:'alternate',steps:wk('2 eetlepels peulvruchten (geen sperziebonen)','4 eetlepels peulvruchten','6 eetlepels peulvruchten (optioneel)')}),
+};
+const TNAMES={lactose:'Lactose',fructose:'Fructose',mannitol_bloemkool:'Mannitol – bloemkool (brochure)',mannitol_champ:'Mannitol – champignons/abrikozen (.odt)',sorbitol:'Sorbitol – avocado',fructanen_brochure:'Fructanen – tarwe (brochure)',tarwe_p34:'Fructanen – tarwe (p.34, 3 dagen)',ui_p34:'Fructanen – ui (p.34)',knoflook_p34:'Fructanen – knoflook (p.34)',gos:'Galactanen – peulvruchten'};
+const newBlock=k=>Object.assign({id:uid()},TEMPL[k]());
+const defaultBlocks=()=>['lactose','fructose','mannitol_bloemkool','sorbitol','fructanen_brochure','gos'].map(newBlock);
+
+/* ---------- toestand (wordt gevuld vanuit Firestore) ---------- */
+let ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}};
+function normPlan(d){d=d||{};return{startDate:d.startDate||'',restDays:Array.isArray(d.restDays)?d.restDays:[],threshold:d.threshold??3,blocks:Array.isArray(d.blocks)?d.blocks:[],lastBackup:d.lastBackup||0}}
+const liveEntries=()=>ST.entries.filter(e=>!e.deleted);
+
+/* ---------- regels per datum + uitkomsten ---------- */
+function activeVersion(date){
+ const rs=[...ST.rulesets].sort((a,b)=>a.validFrom.localeCompare(b.validFrom));
+ const ok=rs.filter(r=>r.validFrom<=date);
+ return ok.length?ok[ok.length-1]:(rs[0]||null);
+}
+const baseRulesAt=date=>{const v=activeVersion(date);return v?v.rules:[]};
+function outcomesAt(date){
+ const map={};
+ [...ST.outcomes].filter(o=>o.validFrom<=date).sort((a,b)=>a.validFrom.localeCompare(b.validFrom)||(a.createdAt||0)-(b.createdAt||0)).forEach(o=>map[o.blockId]=o);
+ return Object.values(map).filter(o=>o.status);
+}
+function overlayAt(date){
+ const out=[];
+ outcomesAt(date).forEach(o=>String(o.keys||'').split(',').map(s=>s.trim()).filter(Boolean).forEach(k=>out.push({term:k,status:o.status==='verdraagt'?'groen':o.status==='drempel'?'beperkt':'rood',limit:o.status==='drempel'?(o.portion||'kleine portie'):'',src:'uitkomst'})));
+ return out;
+}
+function rulesFor(date){
+ const ov=overlayAt(date),ot=new Set(ov.map(r=>r.term.toLowerCase()));
+ return baseRulesAt(date).filter(r=>!ot.has(r.term.toLowerCase())).concat(ov);
+}
+
+/* ---------- tekstherkenning ---------- */
+const toks=s=>String(s).toLowerCase().replace(/[^a-zà-ÿ0-9']+/g,' ').trim().split(' ').filter(Boolean);
+function tokMatch(tok,t){return tok===t||tok===t+'en'||tok===t+'s'||tok===t+'je'||tok===t+'jes'||(t.length>=5&&(tok.startsWith(t)||tok.endsWith(t)))}
+function matchText(text,rules){
+ const tk=toks(text),used=new Array(tk.length).fill(false),hits=[];
+ const rs=rules.map(r=>({...r,w:toks(r.term)})).filter(r=>r.w.length).sort((a,b)=>b.w.length-a.w.length||b.term.length-a.term.length);
+ for(const r of rs){
+  for(let i=0;i<tk.length;i++){
+   if(used[i])continue;
+   let ok=true;
+   for(let j=0;j<r.w.length;j++){
+    if(i+j>=tk.length||used[i+j]||!(r.w.length===1?tokMatch(tk[i],r.w[0]):(tk[i+j]===r.w[j]||tokMatch(tk[i+j],r.w[j])))){ok=false;break}
+   }
+   if(ok){for(let j=0;j<r.w.length;j++)used[i+j]=true;hits.push(r);break}
+  }
+ }
+ return hits;
+}
+const keysOf=b=>String(b.keys||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
+function checkEntry(text,row,date,blocked){
+ const hits=matchText(text,rulesFor(date||today()));
+ const keys=row&&row.block?keysOf(row.block):[];
+ const isTestHit=h=>keys.some(k=>k.includes(h.term.toLowerCase())||h.term.toLowerCase().includes(k));
+ const testDay=!!(row&&row.kind==='test'&&!blocked);
+ const testHits=testDay?hits.filter(isTestHit):[];
+ const others=hits.filter(h=>!testHits.includes(h));
+ let v='onbekend',label='Onbekend: controleer etiket';
+ if(others.some(h=>h.status==='rood')){v='rood';label='Niet toegestaan'+(testDay?' (verstoort de test)':'')}
+ else if(others.some(h=>h.status==='beperkt')){v='beperkt';label='Beperkt toegestaan'}
+ else if(testHits.length){v='test';label='Testproduct (vandaag toegestaan)'}
+ else if(hits.length){v='groen';label='Toegestaan'}
+ if(row&&!row.rest&&(row.kind==='pauze'||blocked)&&hits.some(isTestHit)&&v!=='rood'){v='rood';label=blocked?'Nog niet testen: testproduct niet eten':'Testproduct op pauzedag'}
+ return{v,label,hits,testHits};
+}
+
+/* ---------- planning ---------- */
+function compute(plan){
+ const out=[];let d=plan.startDate;if(!d)return out;const rest=new Set(plan.restDays||[]);
+ (plan.blocks||[]).forEach((b,bi)=>b.steps.forEach((s,si)=>{
+  while(rest.has(d)){out.push({date:d,rest:true});d=addDays(d,1)}
+  out.push({date:d,bi,si,kind:s.kind,dose:s.dose,block:b});d=addDays(d,1);
+ }));
+ return out;
+}
+const dayMax=d=>{const r=ST.days[d];if(!r||!r.scores)return null;return Math.max(0,...r.scores.map(Number))};
+const rowFor=date=>compute(ST.plan).find(r=>r.date===date);
+
+function validate(plan){
+ const E=[],W=[],thr=plan.threshold??3;const sched=compute(plan);const seen={};
+ plan.blocks.forEach((b,bi)=>{
+  const n=b.name||('Blok '+(bi+1));
+  if(!String(b.name||'').trim())E.push(`Blok ${bi+1}: naam ontbreekt`);
+  if(seen[n.toLowerCase()])W.push(`${n}: komt meer dan eens voor in het plan`);seen[n.toLowerCase()]=1;
+  const tests=b.steps.map((s,i)=>s.kind==='test'?i:-1).filter(i=>i>=0);
+  if(!tests.length)E.push(`${n}: minimaal één testdag nodig`);
+  b.steps.forEach((s,i)=>{if(s.kind==='test'&&!String(s.dose||'').trim())E.push(`${n}, dag ${i+1}: portie ontbreekt`)});
+  if(b.mode==='alternate')for(let i=1;i<b.steps.length;i++)if(b.steps[i].kind==='test'&&b.steps[i-1].kind==='test')E.push(`${n}: dag ${i} en ${i+1} zijn beide testdag. Zet een pauzedag ertussen of kies modus "opeenvolgend"`);
+  let tr=0;for(let i=b.steps.length-1;i>=0&&b.steps[i].kind==='pauze';i--)tr++;
+  if(tests.length&&tr<2)E.push(`${n}: na de laatste test minimaal 2 pauzedagen voor het volgende FODMaP`);
+  if(!keysOf(b).length)W.push(`${n}: geen testproduct-trefwoorden, dan herkent de controle het testproduct niet`);
+  keysOf(b).forEach(k=>{const h=matchText(k,rulesFor(today()))[0];
+   if(h&&h.status==='groen')W.push(`${n}: "${k}" staat als FODMaP-arm in je regels; testen levert weinig informatie op`);
+   if(!h)W.push(`${n}: "${k}" komt niet voor in je regels`)});
+ });
+ if(plan.startDate&&plan.restDays.some(d=>d<plan.startDate))E.push('Een rustdag ligt vóór de startdatum');
+ const rd=[...plan.restDays].sort();let run=1;
+ for(let i=1;i<rd.length;i++){run=rd[i]===addDays(rd[i-1],1)?run+1:1;if(run===4){W.push(`Meer dan 3 rustdagen achter elkaar rond ${fmt(rd[i])}: controleer of je weer 3 dagen klachtenvrij bent`);break}}
+ if(plan.startDate){
+  const miss=[],high=[];
+  for(let i=1;i<=3;i++){const d=addDays(plan.startDate,-i),m=dayMax(d);if(m===null)miss.push(d);else if(m>=thr)high.push(d)}
+  if(high.length)W.push('Klachten in de 3 dagen vóór de start: je moet eerst 3 dagen klachtenvrij zijn');
+  else if(miss.length)W.push('Geen klachtenscore ingevuld voor de 3 dagen vóór de start: de voorwaarde "3 dagen klachtenvrij" is niet te controleren');
+ }
+ sched.filter(r=>!r.rest&&r.kind==='test').forEach(r=>{
+  const n=r.block.name,pm=dayMax(addDays(r.date,-1));
+  if(pm!==null&&pm>=thr)W.push(`${n} op ${fmt(r.date)}: de dag ervoor waren er klachten (${pm}). Wacht tot ze weg zijn`);
+  const rec=ST.days[r.date];if(rec&&rec.factors&&rec.factors.includes('Uit eten'))W.push(`${n} op ${fmt(r.date)}: uit eten op een testdag`);
+  liveEntries().filter(e=>e.date===r.date).forEach(e=>{
+   const c=checkEntry(e.text,r,e.date);if(c.v==='rood')W.push(`${fmt(r.date)}: "${e.text}" verstoort de test van ${n}`)});
+ });
+ return{E,W};
+}
+
+/* ---------- "mag ik vandaag testen?" ---------- */
+function dayStatus(date,row){
+ const P=ST.plan,thr=P.threshold??3;
+ if(!P.startDate)return{level:'info',title:'Nog geen startdatum',reasons:['Kies de startdatum bij Plan.'],actions:[],blocked:false};
+ if(!row)return{level:'info',title:'Geen planstap op deze dag',reasons:['Vóór de start of na het einde van het plan.'],actions:[],blocked:false};
+ if(row.rest)return{level:'rust',title:'Rustdag',reasons:['Het plan is een dag opgeschoven. Geen testproduct.'],actions:[],blocked:false};
+ if(row.kind!=='test')return{level:'pauze',title:'Pauzedag',reasons:['Geen testproduct vandaag. Rest van het dieet blijft gelden.'],actions:[],blocked:false};
+ if(date>today())return{level:'info',title:'Testdag, nog niet aan de beurt',reasons:['De controle gebeurt op de dag zelf.'],actions:[],blocked:false};
+ const reasons=[],actions=[];let level='groen';
+ const up=l=>{const o={groen:0,oranje:1,rood:2};if(o[l]>o[level])level=l};
+ const first=compute(P).find(r=>!r.rest&&r.kind==='test');
+ const isFirst=!!first&&first.date===date;
+ const n=isFirst?3:1;
+ for(let i=1;i<=n;i++){
+  const d=addDays(date,-i),m=dayMax(d);
+  if(m===null){
+   if(isFirst){up('oranje');reasons.push(`Geen klachten ingevuld voor ${fmt(d)}. Je moet voor de start 3 dagen klachtenvrij zijn.`)}
+   else{up('rood');reasons.push(`Klachten van ${fmt(d)} zijn niet ingevuld.`);actions.push({act:'goto',arg:d,label:'Vul '+fmt(d)+' in'})}
+  }else if(m>=thr){
+   up('rood');reasons.push(`Klachten op ${fmt(d)} (score ${m}). Wacht tot ze weg zijn.`);
+   if(!actions.some(a=>a.act==='rest'))actions.push({act:'rest',arg:date,label:'Maak vandaag een rustdag'});
+  }
+ }
+ const rec=ST.days[date];
+ if(rec&&rec.factors){
+  if(rec.factors.includes('Uit eten')){up('oranje');reasons.push('Uit eten vandaag: liever niet testen.')}
+  if(rec.factors.includes('Alcohol afwijkend')||rec.factors.includes('Koffie afwijkend')){up('oranje');reasons.push('Afwijkende koffie of alcohol kan het resultaat vertekenen.')}
+  if(rec.factors.includes('Stress')||rec.factors.includes('Slecht geslapen'))reasons.push('Let op: stress of slecht slapen kan klachten geven los van de test.');
+ }
+ const title=level==='groen'?'Je mag vandaag testen':level==='oranje'?'Testen kan, maar let op':'Nog niet testen';
+ if(level==='groen'&&!reasons.length)reasons.push('Geen belemmeringen gevonden.');
+ return{level,title,reasons,actions,blocked:level==='rood'};
+}
+</script>
+
+<!-- ============ APP (Firebase + weergave) ============ -->
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getFirestore,doc,collection,setDoc,onSnapshot,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig={
+ apiKey:"AIzaSyD5WupZZBI3Ge-m5FlQrse2RGs4pzxaI64",
+ authDomain:"fodmap-herintroductie.firebaseapp.com",
+ projectId:"fodmap-herintroductie",
+ storageBucket:"fodmap-herintroductie.firebasestorage.app",
+ messagingSenderId:"602615195159",
+ appId:"1:602615195159:web:f7332f9027296adc325e52"
+};
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch(e){db=getFirestore(app)}
+
+const $=s=>document.querySelector(s);
+let USER=null,unsubs=[];const pend={},ready={},seeded={};
+const UI={view:'vandaag',date:today(),draft:null,ruleDate:today(),filter:'',ed:null,msg:'',slow:false,authErr:''};
+const ref=(c,i)=>doc(db,'users',USER.uid,c,i);
+const cref=c=>collection(db,'users',USER.uid,c);
+let toastT;const toast=t=>{UI.msg=t;render();clearTimeout(toastT);toastT=setTimeout(()=>{UI.msg='';render()},7000)};
+const fail=e=>{console.error(e);if(e&&e.code==='permission-denied'){UI.authErr='Dit account heeft geen toegang tot de gegevens.';signOut(auth);return}toast('Opslaan mislukt: '+(e&&(e.code||e.message)||e))};
+
+/* ---------- opslag ---------- */
+function writePlan(next,hist=true){
+ const prev=ST.plan;
+ if(hist&&prev&&prev.blocks&&prev.blocks.length)setDoc(ref('planHistory','h'+Date.now()),{plan:prev,savedAt:Date.now()}).catch(fail);
+ ST.plan=next;
+ setDoc(ref('plan','main'),{...next,updatedAt:Date.now(),schema:SCHEMA}).catch(fail);
+}
+function issuesHtml(v){
+ let h='';
+ if(v.E.length)h+=`<div class="issues err"><b>Niet toegestaan</b><ul>${v.E.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+ if(v.W.length)h+=`<div class="issues warn"><b>Let op</b><ul>${v.W.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+ return h||'<p class="mut">Geen problemen gevonden.</p>';
+}
+function tryApply(next,what){
+ const v=validate(next);
+ if(v.E.length){alert(`${what} niet toegestaan:\n\n- `+v.E.join('\n- '));return false}
+ if(v.W.length&&!confirm(`${what}: let op\n\n- `+v.W.join('\n- ')+'\n\nToch doorvoeren?'))return false;
+ writePlan(next);return true;
+}
+
+function stopListen(){unsubs.forEach(u=>{try{u()}catch(e){}});unsubs=[]}
+function startListen(){
+ stopListen();ready.plan=ready.rulesets=false;seeded.plan=seeded.rules=false;
+ const sub=(q,cb)=>unsubs.push(onSnapshot(q,{includeMetadataChanges:true},cb,fail));
+ sub(ref('plan','main'),s=>{
+  pend.plan=s.metadata.hasPendingWrites;
+  if(s.exists())ST.plan=normPlan(s.data());
+  else if(!s.metadata.fromCache&&!seeded.plan){seeded.plan=true;const p=normPlan({blocks:defaultBlocks()});ST.plan=p;setDoc(ref('plan','main'),{...p,updatedAt:Date.now(),schema:SCHEMA}).catch(fail)}
+  ready.plan=true;softRender();
+ });
+ sub(cref('rulesets'),s=>{
+  pend.rulesets=s.metadata.hasPendingWrites;
+  ST.rulesets=s.docs.map(d=>({id:d.id,...d.data()}));
+  if(s.empty&&!s.metadata.fromCache&&!seeded.rules){seeded.rules=true;setDoc(ref('rulesets','v_2000-01-01'),{validFrom:'2000-01-01',note:'Startset uit de Martini-brochure (controleer de kleuren)',rules:SEED_RULES,createdAt:Date.now()}).catch(fail)}
+  ready.rulesets=true;softRender();
+ });
+ sub(cref('entries'),s=>{pend.entries=s.metadata.hasPendingWrites;ST.entries=s.docs.map(d=>({id:d.id,...d.data()}));softRender()});
+ sub(cref('days'),s=>{pend.days=s.metadata.hasPendingWrites;ST.days={};s.docs.forEach(d=>ST.days[d.id]=d.data());softRender()});
+ sub(cref('outcomes'),s=>{pend.outcomes=s.metadata.hasPendingWrites;ST.outcomes=s.docs.map(d=>({id:d.id,...d.data()}));softRender()});
+ setTimeout(()=>{if(!(ready.plan&&ready.rulesets)){UI.slow=true;render()}},8000);
+}
+function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}}}
+
+/* ---------- inloggen ---------- */
+getRedirectResult(auth).catch(e=>{UI.authErr=e.code||String(e);render()});
+onAuthStateChanged(auth,u=>{
+ if(u){
+  if(!u.emailVerified){UI.authErr='Dit account is niet geverifieerd';signOut(auth);return}
+  USER=u;UI.authErr='';startListen();
+ }else{USER=null;stopListen();resetST()}
+ render();
+});
+async function login(){
+ UI.authErr='';
+ const p=new GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+ try{await signInWithPopup(auth,p)}
+ catch(e){
+  if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'].includes(e.code)){try{await signInWithRedirect(auth,p);return}catch(e2){e=e2}}
+  if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request'){UI.authErr=(e.code||e.message);render()}
+ }
+}
+
+/* ---------- acties ---------- */
+const A={
+ login,logout(){if(confirm('Uitloggen?'))signOut(auth)},
+ view(v){UI.view=v;UI.ed=null;render(true)},
+ setDate(d){if(d){UI.date=d;render(true)}},day(n){UI.date=addDays(UI.date,n);render(true)},
+ setStartInput(v){if(!v)return;const n=clone(ST.plan);n.startDate=v;if(!tryApply(n,'Startdatum'))render(true)},
+ addRest(d){if(!d||ST.plan.restDays.includes(d)){render(true);return}const n=clone(ST.plan);n.restDays.push(d);n.restDays.sort();tryApply(n,'Rustdag')},
+ addRestInput(){A.addRest($('#rdate').value)},
+ delRest(d){const n=clone(ST.plan);n.restDays=n.restDays.filter(x=>x!==d);tryApply(n,'Rustdag verwijderen')},
+ setThr(v){const n=clone(ST.plan);n.threshold=Math.min(10,Math.max(1,Number(v)||3));writePlan(n,false)},
+ retest(bi,si){
+  const n=clone(ST.plan),b=n.blocks[bi],dose=b.steps[si].dose;
+  b.steps=b.steps.slice(0,si+1).concat([PD(),PD(),TD('Herhaaltest met halve portie van: '+dose),PD(),PD()]);
+  tryApply(n,'Herhaaltest met halve portie')},
+ insertPause(bi,si){const n=clone(ST.plan);n.blocks[bi].steps.splice(si+1,0,PD());tryApply(n,'Extra pauzedag')},
+ /* eten */
+ addEntry(){
+  const t=$('#etext').value.trim();if(!t)return;
+  const e={id:uid(),date:UI.date,time:$('#etime').value,text:t,qty:$('#eqty').value.trim(),deleted:false,createdAt:Date.now(),updatedAt:Date.now(),prev:[]};
+  $('#etext').value='';$('#eqty').value='';
+  setDoc(ref('entries',e.id),e).catch(fail);
+ },
+ delEntry(id){setDoc(ref('entries',id),{deleted:true,deletedAt:Date.now(),updatedAt:Date.now()},{merge:true}).catch(fail)},
+ undelEntry(id){setDoc(ref('entries',id),{deleted:false,updatedAt:Date.now()},{merge:true}).catch(fail)},
+ editEntry(id){
+  const e=ST.entries.find(x=>x.id===id);if(!e)return;
+  const t=prompt('Wat gegeten?',e.text);if(t===null||!t.trim())return;const q=prompt('Hoeveel?',e.qty||'');if(q===null)return;
+  const prev=[...(e.prev||[]),{text:e.text,qty:e.qty||'',time:e.time||'',at:Date.now()}].slice(-20);
+  setDoc(ref('entries',id),{text:t.trim(),qty:q.trim(),prev,updatedAt:Date.now()},{merge:true}).catch(fail);
+ },
+ live(){
+  const t=$('#etext').value,out=$('#elive');if(!t.trim()){out.innerHTML='';return}
+  const row=rowFor(UI.date),st=dayStatus(UI.date,row),c=checkEntry(t,row,UI.date,st.blocked);
+  out.innerHTML=`<span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span>`;
+ },
+ saveDay(){
+  const scores=SYM.map((_,i)=>Number($('#s'+i).value));
+  const factors=FACT.filter((_,i)=>$('#f'+i).checked);
+  const old=ST.days[UI.date];
+  const history=old?[...(old.history||[]),{scores:old.scores,factors:old.factors||[],note:old.note||'',at:old.updatedAt||0}].slice(-10):[];
+  setDoc(ref('days',UI.date),{scores,factors,note:$('#dnote').value,history,updatedAt:Date.now()}).catch(fail);
+  toast('Klachten opgeslagen');
+ },
+ /* blokken */
+ addBlock(){const n=clone(ST.plan);n.blocks.push(newBlock($('#tsel').value));tryApply(n,'Blok toevoegen')},
+ delBlock(bi){if(!confirm('Blok verwijderen uit het plan?'))return;const n=clone(ST.plan);n.blocks.splice(bi,1);tryApply(n,'Blok verwijderen')},
+ move(bi,d){const n=clone(ST.plan),j=bi+d;if(j<0||j>=n.blocks.length)return;[n.blocks[bi],n.blocks[j]]=[n.blocks[j],n.blocks[bi]];tryApply(n,'Volgorde wijzigen')},
+ edit(bi){UI.ed={bi,draft:clone(ST.plan.blocks[bi])};render(true)},
+ edCancel(){UI.ed=null;render(true)},
+ edField(f,v){UI.ed.draft[f]=v;render(true)},
+ edStep(i,f,v){UI.ed.draft.steps[i][f]=v;if(f==='kind'&&v==='pauze')UI.ed.draft.steps[i].dose='';render(true)},
+ edAdd(k){UI.ed.draft.steps.push(k==='test'?TD(''):PD());render(true)},
+ edDel(i){UI.ed.draft.steps.splice(i,1);render(true)},
+ edMove(i,d){const s=UI.ed.draft.steps,j=i+d;if(j<0||j>=s.length)return;[s[i],s[j]]=[s[j],s[i]];render(true)},
+ edSave(){const n=clone(ST.plan);n.blocks[UI.ed.bi]=UI.ed.draft;if(tryApply(n,'Wijziging')){UI.ed=null;render(true)}},
+ /* regels */
+ ruleDate(v){UI.ruleDate=v||today();render(true)},
+ filter(v){UI.filter=v;render();const i=$('#flt');if(i){i.focus();i.setSelectionRange(v.length,v.length)}},
+ quick(el){const c=checkEntry(el.value,null,UI.ruleDate);$('#qr').innerHTML=el.value.trim()?`<span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span>`:''},
+ draftStart(){UI.draft={validFrom:today(),note:'',rules:clone(baseRulesAt(today()))};render(true)},
+ draftCancel(){UI.draft=null;render(true)},
+ draftMeta(f,v){UI.draft[f]=v},
+ draftSet(i,f,v){UI.draft.rules[i][f]=v},
+ draftDel(i){UI.draft.rules.splice(i,1);render(true)},
+ draftAdd(){const t=$('#rt').value.trim();if(!t)return;UI.draft.rules.push({term:t,status:$('#rs').value,limit:$('#rl').value.trim()});render(true)},
+ draftSave(){
+  const d=UI.draft;if(!d.validFrom){alert('Kies een datum');return}
+  if(!d.rules.length){alert('De regellijst is leeg');return}
+  if(!confirm(`Nieuwe regelversie opslaan, geldig vanaf ${fmt(d.validFrom)}?\n\nDagen vóór deze datum blijven met de oude regels gecontroleerd.`))return;
+  const id='v_'+d.validFrom,ex=ST.rulesets.find(r=>r.id===id);
+  setDoc(ref('rulesets',id),{validFrom:d.validFrom,note:d.note||'',rules:d.rules.map(r=>({term:r.term,status:r.status,limit:r.limit||''})),createdAt:Date.now(),prevRules:ex?ex.rules:null}).catch(fail);
+  UI.draft=null;UI.ruleDate=d.validFrom;render(true);toast('Regelversie opgeslagen');
+ },
+ /* uitkomsten */
+ setOutcome(blockId,val){
+  if(!val)return;const b=ST.plan.blocks.find(x=>x.id===blockId);if(!b)return;
+  let portion='';
+  if(val==='drempel'){portion=prompt('Welke portie kun je verdragen? (bijv. ½ portie)','kleine portie');if(portion===null){render(true);return}}
+  setDoc(ref('outcomes','o'+Date.now()),{blockId,name:b.name,keys:b.keys,status:val,portion,validFrom:today(),createdAt:Date.now()}).catch(fail);
+  toast('Uitkomst opgeslagen, geldt vanaf vandaag');
+ },
+ /* back-up en herstel */
+ backup(){doBackup()},
+ restore(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doRestore(r.result);r.readAsText(f);inp.value=''},
+ goto(d){UI.date=d;UI.view='vandaag';render(true)}
+};
+window.A=A;
+
+/* ---------- back-up ---------- */
+function backupJson(){return JSON.stringify({app:'fodmap-herintroductie',schema:SCHEMA,exportedAt:new Date().toISOString(),plan:ST.plan,rulesets:ST.rulesets,outcomes:ST.outcomes,entries:ST.entries,days:ST.days},null,1)}
+function sheetsFromState(){
+ const eten=[...ST.entries].sort((a,b)=>(a.date+(a.time||'')).localeCompare(b.date+(b.time||''))).map(e=>{
+  const r=rowFor(e.date),c=checkEntry(e.text,r,e.date,false);
+  return{Datum:e.date,Tijd:e.time||'','Wat gegeten':e.text,Hoeveel:e.qty||'',Controle:c.label,Verwijderd:e.deleted?'Ja':''};
+ });
+ const kl=Object.keys(ST.days).sort().map(d=>{const x=ST.days[d],o={Datum:d};SYM.forEach((s,i)=>o[s]=(x.scores||[])[i]??'');o.Factoren=(x.factors||[]).join(', ');o.Notitie=x.note||'';return o});
+ const plan=compute(ST.plan).map(r=>r.rest?{Datum:r.date,Blok:'',Dag:'',Soort:'rustdag',Portie:''}:{Datum:r.date,Blok:r.block.name,Dag:r.si+1,Soort:r.kind==='test'?'testdag':'pauze',Portie:r.dose});
+ const regels=[];[...ST.rulesets].sort((a,b)=>a.validFrom.localeCompare(b.validFrom)).forEach(v=>v.rules.forEach(r=>regels.push({'Versie geldig vanaf':v.validFrom,Notitie:v.note||'',Term:r.term,Status:r.status,Limiet:r.limit||''})));
+ const uitk=[...ST.outcomes].sort((a,b)=>a.validFrom.localeCompare(b.validFrom)).map(o=>({'Geldig vanaf':o.validFrom,Product:o.name,Trefwoorden:o.keys,Uitkomst:o.status,Portie:o.portion||''}));
+ const inst=[{Instelling:'Startdatum',Waarde:ST.plan.startDate},{Instelling:'Rustdagen',Waarde:ST.plan.restDays.join(', ')},{Instelling:'Klachtendrempel',Waarde:ST.plan.threshold},{Instelling:'Back-up gemaakt',Waarde:new Date().toLocaleString('nl-NL')}];
+ return{Eten:eten,Klachten:kl,Plan:plan,Regels:regels,Uitkomsten:uitk,Instellingen:inst};
+}
+async function doBackup(){
+ if(!window.XLSX){alert('De Excel-bibliotheek is nog niet geladen of er is geen internet. Probeer het zo nog eens.');return}
+ const X=window.XLSX,wb=X.utils.book_new(),sh=sheetsFromState();
+ Object.keys(sh).forEach(k=>X.utils.book_append_sheet(wb,X.utils.json_to_sheet(sh[k].length?sh[k]:[{}]),k));
+ const buf=X.write(wb,{type:'array',bookType:'xlsx'});
+ const stamp=today();
+ const xf=new File([buf],`fodmap-backup-${stamp}.xlsx`,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+ const jf=new File([backupJson()],`fodmap-herstelbestand-${stamp}.json`,{type:'application/json'});
+ let done=false;
+ try{
+  if(navigator.canShare&&navigator.canShare({files:[xf,jf]})){await navigator.share({files:[xf,jf],title:'FODMaP back-up'});done=true}
+  else if(navigator.canShare&&navigator.canShare({files:[xf]})){await navigator.share({files:[xf],title:'FODMaP back-up'});done=true;dl(jf)}
+ }catch(e){if(e&&e.name==='AbortError')return}
+ if(!done){dl(xf);dl(jf)}
+ const n=clone(ST.plan);n.lastBackup=Date.now();
+ setDoc(ref('plan','main'),{lastBackup:n.lastBackup},{merge:true}).catch(fail);
+ toast('Back-up gemaakt. Bewaar beide bestanden in Bestanden of iCloud.');
+}
+function dl(f){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+async function doRestore(text){
+ let o;try{o=JSON.parse(text)}catch(e){alert('Dit is geen geldig herstelbestand');return}
+ let plan,rulesets=[],outcomes=[],entries=[],days={};
+ if(o.app==='fodmap-herintroductie'){plan=normPlan(o.plan);rulesets=o.rulesets||[];outcomes=o.outcomes||[];entries=o.entries||[];days=o.days||{}}
+ else if(o.blocks&&o.rules){ /* oude lokale versie */
+  plan=normPlan({startDate:o.startDate,restDays:o.restDays,threshold:o.threshold,blocks:o.blocks});
+  rulesets=[{id:'v_2000-01-02',validFrom:'2000-01-02',note:'Geïmporteerd uit eerdere versie',rules:o.rules.map(r=>({term:r.term,status:r.status,limit:r.limit||''})),createdAt:Date.now()}];
+  const map={groen:'verdraagt',oranje:'drempel',rood:'niet'};
+  Object.keys(o.results||{}).forEach(bid=>{const b=o.blocks.find(x=>x.id===bid);if(b&&map[o.results[bid]])outcomes.push({id:'o'+bid,blockId:bid,name:b.name,keys:b.keys,status:map[o.results[bid]],portion:'',validFrom:today(),createdAt:Date.now()})});
+  entries=(o.entries||[]).map(e=>({...e,deleted:false,createdAt:Date.now(),updatedAt:Date.now(),prev:[]}));days=o.days||{};
+ }else{alert('Onbekend bestandsformaat');return}
+ if(!confirm(`Herstellen?\n\n${entries.length} eten-regels, ${Object.keys(days).length} klachtendagen, ${rulesets.length} regelversies worden samengevoegd met wat er al staat. Er wordt niets verwijderd.`))return;
+ if(ST.plan.blocks.length)setDoc(ref('planHistory','h'+Date.now()),{plan:ST.plan,savedAt:Date.now()}).catch(fail);
+ const ops=[];
+ ops.push([ref('plan','main'),{...plan,updatedAt:Date.now(),schema:SCHEMA}]);
+ rulesets.forEach(r=>{const {id,...d}=r;ops.push([ref('rulesets',id||('v_'+r.validFrom)),d]);});
+ outcomes.forEach(r=>{const {id,...d}=r;ops.push([ref('outcomes',id||('o'+uid())),d]);});
+ entries.forEach(r=>{const {id,...d}=r;ops.push([ref('entries',id||uid()),d]);});
+ Object.keys(days).forEach(k=>ops.push([ref('days',k),days[k]]));
+ try{
+  for(let i=0;i<ops.length;i+=400){const b=writeBatch(db);ops.slice(i,i+400).forEach(([r,d])=>b.set(r,d,{merge:true}));b.commit().catch(fail)}
+  toast('Herstel gestart, de data wordt zo getoond');
+ }catch(e){fail(e)}
+}
+
+/* ---------- weergave ---------- */
+const hitStr=hs=>hs.map(h=>`${esc(h.term)} <span class="badge ${h.status}">${h.status}</span>${h.limit?' '+esc(h.limit):''}`).join(', ');
+const kindBadge=k=>`<span class="badge ${k}">${k==='test'?'testdag':k==='rust'?'rustdag':'pauze'}</span>`;
+function backupBanner(){
+ const lb=ST.plan.lastBackup,days=lb?Math.floor((Date.now()-lb)/864e5):null;
+ if(lb&&days<=7)return'';
+ return`<div class="banner">${lb?`Laatste back-up is ${days} dagen oud.`:'Er is nog nooit een back-up gemaakt.'} Maak er een bij <a href="#" onclick="A.view('overzicht');return false">Overzicht</a>.</div>`;
+}
+function vVandaag(){
+ const d=UI.date,row=rowFor(d),st=dayStatus(d,row);
+ let h=backupBanner()+`<div class="card"><div class="row"><button onclick="A.day(-1)">◀</button><input type="date" value="${d}" onchange="A.setDate(this.value)"><button onclick="A.day(1)">▶</button><button onclick="A.setDate('${today()}')">Vandaag</button></div></div>`;
+ h+=`<div class="status ${st.level}"><h2>${esc(st.title)}</h2>`;
+ if(row&&!row.rest)h+=`<p><b>${esc(row.block.name)}</b> ${kindBadge(row.kind)} <span class="mut">dag ${row.si+1} van ${row.block.steps.length}</span></p>`;
+ if(row&&row.kind==='test')h+=`<p>Portie: <b>${esc(row.dose)}</b></p>`;
+ st.reasons.forEach(r=>h+=`<p class="${st.level==='rood'?'err':st.level==='oranje'?'warn':'mut'}" style="margin:4px 0">${esc(r)}</p>`);
+ h+='<div class="row">';
+ st.actions.forEach(a=>h+=`<button class="pri" onclick="A.${a.act==='rest'?`addRest('${a.arg}')`:`goto('${a.arg}')`}">${esc(a.label)}</button>`);
+ if(row&&row.rest)h+=`<button onclick="A.delRest('${d}')">Rustdag verwijderen</button>`;
+ else if(row){
+  h+=`<button onclick="A.addRest('${d}')">Rustdag van maken (plan schuift op)</button>`;
+  if(row.kind==='test')h+=`<button onclick="A.retest(${row.bi},${row.si})">Klachten: pauze + herhaaltest halve portie</button>`;
+  h+=`<button onclick="A.insertPause(${row.bi},${row.si})">Extra pauzedag erachter</button>`;
+ }
+ h+='</div></div>';
+ const all=ST.entries.filter(e=>e.date===d).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+ const ents=all.filter(e=>!e.deleted),gone=all.filter(e=>e.deleted),now=new Date();
+ h+=`<div class="card"><h2>Eten</h2><div class="row"><input id="etime" type="time" value="${pad(now.getHours())}:${pad(now.getMinutes())}" style="flex:none;min-width:0"><input id="etext" placeholder="Wat gegeten? (of ingrediënten)" oninput="A.live()"><input id="eqty" placeholder="Hoeveel?"><button class="pri" onclick="A.addEntry()">Toevoegen</button></div><div id="elive" class="mut"></div>`;
+ if(ents.length){h+='<table>';ents.forEach(e=>{const c=checkEntry(e.text,row,d,st.blocked);h+=`<tr><td>${esc(e.time||'')}</td><td>${esc(e.text)}${e.qty?` <span class="mut">(${esc(e.qty)})</span>`:''}<br><span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span></td><td style="white-space:nowrap"><button onclick="A.editEntry('${e.id}')">✎</button> <button class="dng" onclick="A.delEntry('${e.id}')">✕</button></td></tr>`});h+='</table>'}
+ if(gone.length){h+=`<details><summary class="mut">Verwijderd (${gone.length})</summary>${gone.map(e=>`<div class="row"><span style="flex:1">${esc(e.time||'')} ${esc(e.text)}</span><button onclick="A.undelEntry('${e.id}')">Herstel</button></div>`).join('')}</details>`}
+ h+='</div>';
+ const rec=ST.days[d]||{scores:[],factors:[],note:''};
+ h+=`<div class="card"><h2>Klachten (0 = geen, 10 = ondraaglijk)</h2>`;
+ SYM.forEach((s,i)=>{h+=`<div class="row"><span style="flex:1">${s}</span><select id="s${i}" style="flex:none">${Array.from({length:11},(_,k)=>`<option ${Number(rec.scores[i]||0)===k?'selected':''}>${k}</option>`).join('')}</select></div>`});
+ h+=`<div class="row">${FACT.map((f,i)=>`<label><input type="checkbox" id="f${i}" ${(rec.factors||[]).includes(f)?'checked':''}> ${f}</label>`).join(' ')}</div><textarea id="dnote" rows="2" style="width:100%" placeholder="Toelichting (ziekte, stress, vakantie…)">${esc(rec.note||'')}</textarea><div class="row"><button class="pri" onclick="A.saveDay()">Klachten opslaan</button></div></div>`;
+ return h;
+}
+function vPlan(){
+ const P=ST.plan,sched=compute(P);
+ let h=`<div class="card"><h2>Start en rustdagen</h2><div class="row"><span>Startdatum</span><input type="date" value="${P.startDate}" onchange="A.setStartInput(this.value)"></div>
+ <div class="row"><span>Rustdag</span><input type="date" id="rdate" value="${today()}"><button onclick="A.addRestInput()">Toevoegen</button></div>
+ <div class="row">${P.restDays.map(d=>`<span class="badge rust">${fmt(d)} <a href="#" style="color:#fff" onclick="A.delRest('${d}');return false">✕</a></span>`).join(' ')||'<span class="mut">Geen rustdagen</span>'}</div>
+ <div class="row"><span>Klachtendrempel (score vanaf)</span><input type="number" min="1" max="10" value="${P.threshold}" onchange="A.setThr(this.value)" style="max-width:80px;flex:none"></div></div>`;
+ h+=`<div class="card"><h2>Controle</h2>${issuesHtml(validate(P))}</div>`;
+ P.blocks.forEach((b,bi)=>{
+  if(UI.ed&&UI.ed.bi===bi){h+=edHtml();return}
+  const mine=sched.filter(r=>r.bi===bi),range=mine.length?`${fmt(mine[0].date)} t/m ${fmt(mine[mine.length-1].date)}`:'(geen startdatum)';
+  h+=`<div class="card"><div class="row"><b style="flex:1">${bi+1}. ${esc(b.name)}</b><button onclick="A.move(${bi},-1)">↑</button><button onclick="A.move(${bi},1)">↓</button><button onclick="A.edit(${bi})">Bewerk</button><button class="dng" onclick="A.delBlock(${bi})">✕</button></div><div class="mut">${range} · modus: ${b.mode==='alternate'?'afwisselend':'opeenvolgend'} · trefwoorden: ${esc(b.keys)}</div>`;
+  const first=sched.findIndex(r=>r.bi===bi),last=sched.map(r=>r.bi).lastIndexOf(bi);
+  (first<0?b.steps.map((s,si)=>({si,kind:s.kind,dose:s.dose})):sched.slice(first,last+1)).forEach(r=>{
+   h+=`<div class="step"><span class="d">${r.date?fmt(r.date):'dag '+(r.si+1)}</span>${kindBadge(r.rest?'rust':r.kind)}<span class="t">${r.rest?'rustdag':esc(r.dose)}</span></div>`});
+  h+='</div>';
+ });
+ h+=`<div class="card"><h2>Blok toevoegen</h2><div class="row"><select id="tsel">${Object.keys(TNAMES).map(k=>`<option value="${k}">${TNAMES[k]}</option>`).join('')}</select><button onclick="A.addBlock()">Toevoegen</button></div><p class="mut">Daarna met Bewerk aanpassen. Elke wijziging wordt gecontroleerd voordat hij wordt opgeslagen. Vorige versies van het plan blijven bewaard.</p></div>`;
+ return h;
+}
+function edHtml(){
+ const d=UI.ed.draft,n=clone(ST.plan);n.blocks[UI.ed.bi]=d;
+ let h=`<div class="card" style="border-color:var(--b)"><h2>Bewerk blok</h2>
+ <div class="row"><span>Naam</span><input value="${esc(d.name)}" onchange="A.edField('name',this.value)"></div>
+ <div class="row"><span>Trefwoorden testproduct</span><input value="${esc(d.keys)}" onchange="A.edField('keys',this.value)" placeholder="komma-gescheiden"></div>
+ <div class="row"><span>Modus</span><select onchange="A.edField('mode',this.value)"><option value="alternate" ${d.mode==='alternate'?'selected':''}>afwisselend (test, pauze, test…)</option><option value="consecutive" ${d.mode==='consecutive'?'selected':''}>opeenvolgend (testdagen achter elkaar)</option></select></div>`;
+ d.steps.forEach((s,i)=>{h+=`<div class="row"><span style="width:50px;flex:none">dag ${i+1}</span><select onchange="A.edStep(${i},'kind',this.value)" style="flex:none"><option value="test" ${s.kind==='test'?'selected':''}>test</option><option value="pauze" ${s.kind==='pauze'?'selected':''}>pauze</option></select><input value="${esc(s.dose)}" ${s.kind==='pauze'?'disabled':''} placeholder="portie" onchange="A.edStep(${i},'dose',this.value)"><button onclick="A.edMove(${i},-1)">↑</button><button onclick="A.edMove(${i},1)">↓</button><button class="dng" onclick="A.edDel(${i})">✕</button></div>`});
+ h+=`<div class="row"><button onclick="A.edAdd('test')">+ testdag</button><button onclick="A.edAdd('pauze')">+ pauzedag</button></div>${issuesHtml(validate(n))}<div class="row"><button class="pri" onclick="A.edSave()">Opslaan</button><button onclick="A.edCancel()">Annuleren</button></div></div>`;
+ return h;
+}
+function vRegels(){
+ if(UI.draft)return vDraft();
+ const d=UI.ruleDate,ver=activeVersion(d),f=UI.filter.toLowerCase();
+ let h=`<div class="card"><h2>Mag dit?</h2><div class="row"><span>Regels van</span><input type="date" value="${d}" onchange="A.ruleDate(this.value)"></div><div class="row"><input id="qc" placeholder="product of ingrediënten" oninput="A.quick(this)"></div><div id="qr"></div></div>`;
+ const ov=overlayAt(d);
+ if(ov.length)h+=`<div class="card"><h2>Jouw uitkomsten (gelden boven de basislijst)</h2><table>${outcomesAt(d).map(o=>`<tr><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td><td class="mut">vanaf ${fmt(o.validFrom)}</td></tr>`).join('')}</table></div>`;
+ h+=`<div class="card"><h2>Basisregels${ver?` (versie vanaf ${fmt(ver.validFrom)})`:''}</h2><p class="mut">${esc(ver&&ver.note||'')} De startset komt uit de Martini-brochure. De kleuren zijn niet automatisch overgenomen, controleer de lijst zelf. De langste overeenkomst wint ("lactosevrije melk" gaat boven "melk").</p>
+ <div class="row"><button class="pri" onclick="A.draftStart()">Regels aanpassen (nieuwe versie)</button></div>
+ <div class="mut">Versies: ${[...ST.rulesets].sort((a,b)=>a.validFrom.localeCompare(b.validFrom)).map(v=>`<a href="#" onclick="A.ruleDate('${v.validFrom}');return false">${v.validFrom}</a>`).join(' · ')}</div>
+ <div class="row"><input id="flt" placeholder="Zoeken in regels" value="${esc(UI.filter)}" oninput="A.filter(this.value)"></div><table>`;
+ (ver?ver.rules:[]).filter(r=>!f||r.term.toLowerCase().includes(f)).sort((a,b)=>a.term.localeCompare(b.term)).slice(0,300).forEach(r=>{h+=`<tr><td>${esc(r.term)}</td><td><span class="badge ${r.status}">${r.status}</span></td><td class="mut">${esc(r.limit||'')}</td></tr>`});
+ return h+'</table></div>';
+}
+function vDraft(){
+ const D=UI.draft,f=UI.filter.toLowerCase();
+ let h=`<div class="card" style="border-color:var(--b)"><h2>Nieuwe regelversie</h2>
+ <div class="row"><span>Geldig vanaf</span><input type="date" value="${D.validFrom}" onchange="A.draftMeta('validFrom',this.value)"></div>
+ <div class="row"><input placeholder="Notitie (bijv. nieuwe PDF diëtist)" value="${esc(D.note)}" onchange="A.draftMeta('note',this.value)"></div>
+ <div class="row"><input id="rt" placeholder="nieuwe term"><select id="rs" style="flex:none"><option>rood</option><option>beperkt</option><option>groen</option></select><input id="rl" placeholder="limiet (optioneel)"><button onclick="A.draftAdd()">Toevoegen</button></div>
+ <div class="row"><input id="flt" placeholder="Zoeken in regels" value="${esc(UI.filter)}" oninput="A.filter(this.value)"></div><table>`;
+ D.rules.map((r,i)=>({r,i})).filter(x=>!f||x.r.term.toLowerCase().includes(f)).sort((a,b)=>a.r.term.localeCompare(b.r.term)).slice(0,300).forEach(({r,i})=>{
+  h+=`<tr><td>${esc(r.term)}</td><td><select onchange="A.draftSet(${i},'status',this.value)">${['rood','beperkt','groen'].map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input value="${esc(r.limit||'')}" onchange="A.draftSet(${i},'limit',this.value)" style="width:110px"></td><td><button class="dng" onclick="A.draftDel(${i})">✕</button></td></tr>`});
+ return h+`</table><div class="row"><button class="pri" onclick="A.draftSave()">Opslaan als nieuwe versie</button><button onclick="A.draftCancel()">Annuleren</button></div></div>`;
+}
+function vOverzicht(){
+ const P=ST.plan,sched=compute(P),t=today();
+ let h=backupBanner()+'<div class="card"><h2>Resultaat per FODMaP</h2><table><tr><th>Blok</th><th>Data</th><th>Uitkomst</th></tr>';
+ P.blocks.forEach((b,bi)=>{
+  const tests=sched.filter(r=>r.bi===bi&&r.kind==='test');
+  let mx=null,missing=false;
+  tests.forEach(r=>[r.date,addDays(r.date,1)].forEach(d=>{const m=dayMax(d);if(m===null){if(d<=t)missing=true}else mx=Math.max(mx??0,m)}));
+  const auto=mx===null?'nog geen data':mx>=P.threshold?`klachten (max ${mx})`:`geen klachten (max ${mx})`+(missing?', niet alle dagen ingevuld':'');
+  const cur=outcomesAt(t).find(o=>o.blockId===b.id);
+  const lab={verdraagt:'verdraagt',drempel:'drempel',niet:'voorlopig niet'};
+  h+=`<tr><td>${esc(b.name)}</td><td class="${mx!==null&&mx>=P.threshold?'err':''}">${auto}</td><td>${cur?`<b>${lab[cur.status]}</b>${cur.portion?' ('+esc(cur.portion)+')':''}<br>`:''}<select onchange="A.setOutcome('${b.id}',this.value)"><option value="">${cur?'wijzig…':'kies…'}</option><option value="verdraagt">verdraagt</option><option value="drempel">drempel: kleine portie</option><option value="niet">voorlopig niet</option></select></td></tr>`});
+ h+='</table><p class="mut">Een uitkomst werkt door in de controle van eten, vanaf de dag dat je hem kiest. Pas definitief afkeuren na herhaling: stress, slaap en eten buiten de test kunnen klachten geven.</p></div>';
+ if(ST.outcomes.length)h+=`<div class="card"><h2>Historie uitkomsten</h2><table>${[...ST.outcomes].sort((a,b)=>b.validFrom.localeCompare(a.validFrom)||(b.createdAt||0)-(a.createdAt||0)).map(o=>`<tr><td>${fmt(o.validFrom)}</td><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td></tr>`).join('')}</table></div>`;
+ h+=`<div class="card"><h2>Back-up en herstel</h2><p class="mut">Je data staat in de cloud. Een back-up is een extra kopie voor jezelf: een Excel-bestand om te lezen en een herstelbestand.${ST.plan.lastBackup?' Laatste back-up: '+new Date(ST.plan.lastBackup).toLocaleString('nl-NL')+'.':''}</p>
+ <div class="row"><button class="pri" onclick="A.backup()">Back-up maken</button></div>
+ <div class="row"><label class="mut">Herstellen uit herstelbestand (.json), voegt samen en verwijdert niets: <input type="file" accept="application/json,.json" onchange="A.restore(this)"></label></div></div>
+ <div class="card"><div class="row"><span class="mut" style="flex:1">Ingelogd als ${esc(USER?USER.email:'')}</span><button onclick="A.logout()">Uitloggen</button></div></div>`;
+ return h;
+}
+
+/* ---------- renderen (zonder dat invoer verloren gaat) ---------- */
+let lastKey='';
+function snap(){
+ const s={};document.querySelectorAll('#app [id]').forEach(el=>{if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT')s[el.id]=el.type==='checkbox'?el.checked:el.value});
+ const a=document.activeElement;return{vals:s,focus:a&&a.id&&$('#app').contains(a)?a.id:null,pos:a&&a.selectionStart!=null?[a.selectionStart,a.selectionEnd]:null};
+}
+function restore(sn){
+ Object.keys(sn.vals).forEach(id=>{const el=document.getElementById(id);if(!el)return;if(el.type==='checkbox')el.checked=sn.vals[id];else if(el.value!==sn.vals[id])el.value=sn.vals[id]});
+ if(sn.focus){const el=document.getElementById(sn.focus);if(el){el.focus();if(sn.pos&&el.setSelectionRange)try{el.setSelectionRange(sn.pos[0],sn.pos[1])}catch(e){}}}
+}
+const softRender=()=>render(false);
+function render(force){
+ const key=UI.view+'|'+UI.date+'|'+(UI.draft?'d':'')+(UI.ed?'e':'')+'|'+(USER?USER.uid:'');
+ const keep=!force&&key===lastKey&&USER&&ready.plan&&ready.rulesets;
+ const sn=keep?snap():null;lastKey=key;
+ const nav=$('#nav'),app=$('#app'),sync=$('#sync');
+ if(!USER){
+  nav.innerHTML='';sync.textContent='';
+  app.innerHTML=`<div class="center card"><h2>FODMaP herintroductie</h2><p class="mut">Log in met het Google-account dat toegang heeft.</p><p><button class="pri" onclick="A.login()">Inloggen met Google</button></p>${UI.authErr?`<p class="err">${esc(UI.authErr)}</p>`:''}</div>`;
+  return;
+ }
+ const busy=Object.values(pend).some(Boolean)||!navigator.onLine;
+ sync.textContent=busy?(navigator.onLine?'⏳ opslaan…':'⏳ offline, wordt later opgeslagen'):'☁ opgeslagen';
+ nav.innerHTML=[['vandaag','Vandaag'],['plan','Plan'],['regels','Regels'],['overzicht','Overzicht']].map(([k,l])=>`<button class="${UI.view===k?'on':''}" onclick="A.view('${k}')">${l}</button>`).join('');
+ if(!(ready.plan&&ready.rulesets)){app.innerHTML=`<div class="center card"><p>Laden…</p>${UI.slow?'<p class="mut">Dit duurt lang. De eerste keer is internet nodig. Controleer je verbinding.</p>':''}</div>`;return}
+ app.innerHTML={vandaag:vVandaag,plan:vPlan,regels:vRegels,overzicht:vOverzicht}[UI.view]()+(UI.msg?`<div class="toast">${esc(UI.msg)}</div>`:'');
+ if(sn)restore(sn);
+}
+window.addEventListener('online',()=>render());window.addEventListener('offline',()=>render());
+render();
+</script>
+</body>
+</html>
