@@ -10,6 +10,7 @@
 :root{
   --bg:#f6f7f4;--fg:#1d2a1d;--card:#fff;--mut:#667366;--ln:#dde3da;
   --g:#2e7d32;--r:#c62828;--o:#ef8f00;--b:#1565c0;
+  --accent:#1565c0;--accent-fg:#fff;
   --card-rgb:255,255,255;--fg-rgb:29,42,29;
   --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 1px rgba(0,0,0,.04);
 }
@@ -48,8 +49,8 @@ nav button{
   transition:color 150ms ease;font-weight:400 !important;
 }
 nav button.on{
-  background:var(--fg) !important;
-  color:var(--bg) !important;
+  background:var(--accent) !important;
+  color:var(--accent-fg) !important;
   font-weight:600 !important;
   box-shadow:0 1px 4px rgba(0,0,0,.18) !important;
 }
@@ -61,7 +62,7 @@ button,select,input,textarea{
   min-height:44px;
 }
 button{cursor:pointer;font-weight:500}
-button.on,button.pri{background:var(--g);color:#fff;border-color:var(--g)}
+button.on,button.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 button.dng{color:var(--r)}
 
 /* Instant press feedback */
@@ -134,6 +135,25 @@ h2{font-size:16px;font-weight:600;letter-spacing:-0.01em;margin:0 0 6px}
 <!-- ============ LOGICA (geen DOM, geen Firebase) ============ -->
 <script id="logic">
 const SCHEMA=2;
+
+/* ---- thema ---- */
+const THEME_KEY='fodmap-theme-v1';
+const ACCENT_PRESETS=[
+  {n:'Blauw',v:'#1565c0',f:'#fff'},
+  {n:'Lichtblauw',v:'#0288d1',f:'#fff'},
+  {n:'Teal',v:'#00838f',f:'#fff'},
+  {n:'Paars',v:'#6a1b9a',f:'#fff'},
+  {n:'Grijs',v:'#546e7a',f:'#fff'},
+  {n:'Antraciet',v:'#37474f',f:'#fff'},
+];
+function getTheme(){try{return JSON.parse(localStorage.getItem(THEME_KEY)||'{}')}catch(e){return{}}}
+function applyTheme(t){
+  const r=document.documentElement;
+  r.style.setProperty('--accent',t.accent||'#1565c0');
+  r.style.setProperty('--accent-fg',t.accentFg||'#fff');
+}
+function saveTheme(t){try{localStorage.setItem(THEME_KEY,JSON.stringify(t))}catch(e){}; applyTheme(t);}
+applyTheme(getTheme());
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const parse=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
@@ -501,7 +521,9 @@ const A={
  /* back-up en herstel */
  backup(){doBackup()},
  restore(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doRestore(r.result);r.readAsText(f);inp.value=''},
- goto(d){UI.date=d;UI.view='vandaag';render(true)}
+ goto(d){UI.date=d;UI.view='vandaag';render(true)},
+ setAccent(v,f){saveTheme({...getTheme(),accent:v,accentFg:f});render(true)},
+ resetTheme(){try{localStorage.removeItem(THEME_KEY)}catch(e){}; applyTheme({});render(true);}
 };
 window.A=A;
 
@@ -652,6 +674,20 @@ function vDraft(){
   h+=`<tr><td>${esc(r.term)}</td><td><select onchange="A.draftSet(${i},'status',this.value)">${['rood','beperkt','groen'].map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input value="${esc(r.limit||'')}" onchange="A.draftSet(${i},'limit',this.value)" style="width:110px"></td><td><button class="dng" onclick="A.draftDel(${i})">✕</button></td></tr>`});
  return h+`</table><div class="row"><button class="pri" onclick="A.draftSave()">Opslaan als nieuwe versie</button><button onclick="A.draftCancel()">Annuleren</button></div></div>`;
 }
+function vWeergave(){
+ const cur=getTheme().accent||'#1565c0';
+ let h=`<div class="card"><h2>Weergave</h2>
+ <p class="mut">Kies een accentkleur voor knoppen en de navigatie.</p>
+ <div class="banner" style="margin-top:8px">⚠️ <b>Gereserveerde kleuren:</b> rood, groen en oranje zijn voorbehouden aan de voedselstatus (niet toegestaan / toegestaan / beperkt). Kies deze niet als accentkleur.</div>
+ <p style="font-size:13px;color:var(--mut);margin:4px 0 6px">Accentkleur knoppen &amp; navigatie</p>
+ <div class="row" style="flex-wrap:wrap;gap:8px">`;
+ ACCENT_PRESETS.forEach(p=>{
+  const sel=cur===p.v;
+  h+=`<button onclick="A.setAccent('${p.v}','${p.f}')" style="background:${p.v};color:${p.f};border-color:${p.v};flex:none;padding:6px 14px;min-height:36px${sel?';outline:3px solid '+p.v+';outline-offset:3px':''}">${sel?'✓ ':''}${p.n}</button>`;
+ });
+ h+=`</div><div class="row" style="margin-top:8px"><button onclick="A.resetTheme()">Standaard herstellen</button></div></div>`;
+ return h;
+}
 function vOverzicht(){
  const P=ST.plan,sched=compute(P),t=today();
  let h=backupBanner()+'<div class="card"><h2>Resultaat per FODMaP</h2><table><tr><th>Blok</th><th>Data</th><th>Uitkomst</th></tr>';
@@ -665,6 +701,7 @@ function vOverzicht(){
   h+=`<tr><td>${esc(b.name)}</td><td class="${mx!==null&&mx>=P.threshold?'err':''}">${auto}</td><td>${cur?`<b>${lab[cur.status]}</b>${cur.portion?' ('+esc(cur.portion)+')':''}<br>`:''}<select onchange="A.setOutcome('${b.id}',this.value)"><option value="">${cur?'wijzig…':'kies…'}</option><option value="verdraagt">verdraagt</option><option value="drempel">drempel: kleine portie</option><option value="niet">voorlopig niet</option></select></td></tr>`});
  h+='</table><p class="mut">Een uitkomst werkt door in de controle van eten, vanaf de dag dat je hem kiest. Pas definitief afkeuren na herhaling: stress, slaap en eten buiten de test kunnen klachten geven.</p></div>';
  if(ST.outcomes.length)h+=`<div class="card"><h2>Historie uitkomsten</h2><table>${[...ST.outcomes].sort((a,b)=>b.validFrom.localeCompare(a.validFrom)||(b.createdAt||0)-(a.createdAt||0)).map(o=>`<tr><td>${fmt(o.validFrom)}</td><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td></tr>`).join('')}</table></div>`;
+ h+=vWeergave();
  h+=`<div class="card"><h2>Back-up en herstel</h2><p class="mut">Je data staat in de cloud. Een back-up is een extra kopie voor jezelf: een Excel-bestand om te lezen en een herstelbestand.${ST.plan.lastBackup?' Laatste back-up: '+new Date(ST.plan.lastBackup).toLocaleString('nl-NL')+'.':''}</p>
  <div class="row"><button class="pri" onclick="A.backup()">Back-up maken</button></div>
  <div class="row"><label class="mut">Herstellen uit herstelbestand (.json), voegt samen en verwijdert niets: <input type="file" accept="application/json,.json" onchange="A.restore(this)"></label></div></div>
