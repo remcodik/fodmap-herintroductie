@@ -448,7 +448,7 @@ function startListen(){
 function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}}}
 
 /* ---------- inloggen ---------- */
-getRedirectResult(auth).catch(()=>{});
+getRedirectResult(auth).catch(e=>{if(e&&e.code&&e.code!=='auth/popup-closed-by-user'){UI.authErr='Inloggen mislukt. Open de app in Safari of Chrome — niet via WhatsApp of een andere app.';render()}});
 onAuthStateChanged(auth,u=>{
  if(u){
   if(!u.emailVerified){UI.authErr='Dit account is niet geverifieerd';signOut(auth);return}
