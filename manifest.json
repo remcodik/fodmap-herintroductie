@@ -2,7 +2,7 @@
   "name": "FODMaP Herintroductie",
   "short_name": "FODMaP",
   "description": "Bijhouden van je FODMAP herintroductieprotocol",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#006064",
   "theme_color": "#006064",
