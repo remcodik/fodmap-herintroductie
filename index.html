@@ -745,6 +745,66 @@ function vOverzicht(){
 }
 
 /* ---------- renderen (zonder dat invoer verloren gaat) ---------- */
+function vRapport(){
+ const P=ST.plan,sched=compute(P),t=today();
+ if(!P.startDate||!P.blocks.length)return'<div class="card"><p class="mut">Stel eerst een plan in via de Plan-tab.</p></div>';
+ const thr=P.threshold??3;
+
+ /* voortgang */
+ const done=P.blocks.filter((_,bi)=>{const ts=sched.filter(r=>r.bi===bi&&r.kind==='test');return ts.length&&ts[ts.length-1].date<t}).length;
+ const pct=P.blocks.length?Math.round(done/P.blocks.length*100):0;
+ let h=`<div class="card"><h2>Voortgang</h2><div style="background:var(--ln);border-radius:8px;height:14px;overflow:hidden;margin-bottom:8px"><div style="background:var(--accent);height:100%;width:${pct}%;transition:width .4s"></div></div><p class="mut">${done} van ${P.blocks.length} blokken afgerond · ${pct}%</p></div>`;
+
+ /* resultaten per blok */
+ h+='<div class="card"><h2>Resultaten per blok</h2><table><tr><th>Blok</th><th>Testdagen &amp; scores</th><th>Uitkomst</th></tr>';
+ P.blocks.forEach((b,bi)=>{
+  const tests=sched.filter(r=>r.bi===bi&&r.kind==='test');
+  const cur=outcomesAt(t).find(o=>o.blockId===b.id);
+  const labMap={verdraagt:'verdraagt ✓',drempel:'kleine portie ⚠',niet:'niet ✗'};
+  const clMap={verdraagt:'groen',drempel:'beperkt',niet:'rood'};
+  const dagsCols=tests.map(r=>{
+   const ms=[r.date,addDays(r.date,1)].map(d=>dayMax(d));
+   const filled=ms.filter(x=>x!==null);
+   const mx=filled.length?Math.max(...filled):null;
+   const isPast=r.date<=t;
+   const cl=!isPast?'mut':mx===null?'mut':mx>=thr?'err':'';
+   return`<span class="${cl}">${fmt(r.date)}${isPast?(mx!==null?`: <b>${mx}</b>`:'<span class="mut"> —</span>'):' <span class="mut">(gepland)</span>'}</span>`;
+  }).join('<br>');
+  const uitkomst=cur?`<span class="badge ${clMap[cur.status]}">${labMap[cur.status]}</span>`:'<span class="mut">—</span>';
+  h+=`<tr><td><b>${esc(b.name)}</b><br><span class="mut">${esc(b.keys)}</span></td><td>${dagsCols}</td><td>${uitkomst}</td></tr>`;
+ });
+ h+='</table></div>';
+
+ /* klachtenverloop grafiek */
+ const days30=[];for(let i=29;i>=0;i--)days30.push(addDays(t,-i));
+ if(days30.some(d=>dayMax(d)!==null)){
+  h+='<div class="card"><h2>Klachtenverloop (30 dagen)</h2><div style="display:flex;align-items:flex-end;gap:2px;height:72px;margin-bottom:4px">';
+  days30.forEach(d=>{
+   const m=dayMax(d),r=rowFor(d);
+   const bg=m===null?'var(--ln)':m>=thr?'var(--r)':m>0?'var(--o)':'var(--g)';
+   const ht=m===null?3:Math.max(4,Math.round(m/10*68));
+   const kind=r?(r.rest?'rustdag':r.kind==='test'?'testdag':'pauzedag'):'';
+   h+=`<div title="${d}${kind?' · '+kind:''}: ${m!==null?m:'niet ingevuld'}" style="flex:1;height:${ht}px;background:${bg};border-radius:3px 3px 0 0;min-width:0"></div>`;
+  });
+  h+='</div>';
+  h+=`<div style="display:flex;justify-content:space-between"><span class="mut">${fmt(days30[0])}</span><span class="mut">${fmt(t)}</span></div>`;
+  h+='<div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap"><span style="color:var(--g);font-size:13px">■ geen klachten</span><span style="color:var(--o);font-size:13px">■ licht</span><span style="color:var(--r);font-size:13px">■ boven drempel</span><span style="color:var(--ln);font-size:13px">■ niet ingevuld</span></div></div>';
+ }
+
+ /* samenvatting conclusies */
+ const outs=outcomesAt(t);
+ if(outs.length){
+  const grp={verdraagt:[],drempel:[],niet:[]};
+  outs.forEach(o=>{if(grp[o.status])grp[o.status].push(o)});
+  h+='<div class="card"><h2>Jouw conclusies</h2>';
+  if(grp.verdraagt.length)h+=`<p>✓ <b>Verdraagt goed:</b> ${grp.verdraagt.map(o=>`<span class="badge groen">${esc(o.name)}</span>`).join(' ')}</p>`;
+  if(grp.drempel.length)h+=`<p>⚠ <b>Kleine portie:</b> ${grp.drempel.map(o=>`<span class="badge beperkt">${esc(o.name)}</span>`).join(' ')}</p>`;
+  if(grp.niet.length)h+=`<p>✗ <b>Voorlopig niet:</b> ${grp.niet.map(o=>`<span class="badge rood">${esc(o.name)}</span>`).join(' ')}</p>`;
+  h+='<p class="mut" style="margin-top:8px;font-size:12px">Gebaseerd op opgeslagen uitkomsten in Overzicht. Wijzig ze daar.</p></div>';
+ }
+ return h;
+}
+
 let lastKey='';
 function snap(){
  const s={};document.querySelectorAll('#app [id]').forEach(el=>{if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT')s[el.id]=el.type==='checkbox'?el.checked:el.value});
@@ -767,9 +827,9 @@ function render(force){
  }
  const busy=Object.values(pend).some(Boolean)||!navigator.onLine;
  sync.textContent=busy?(navigator.onLine?'⏳ opslaan…':'⏳ offline, wordt later opgeslagen'):'☁ opgeslagen';
- nav.innerHTML=[['vandaag','Vandaag'],['plan','Plan'],['regels','Regels'],['overzicht','Overzicht']].map(([k,l])=>`<button class="${UI.view===k?'on':''}" onclick="A.view('${k}')">${l}</button>`).join('');
+ nav.innerHTML=[['vandaag','Vandaag'],['plan','Plan'],['regels','Regels'],['rapport','Rapport'],['overzicht','Overzicht']].map(([k,l])=>`<button class="${UI.view===k?'on':''}" onclick="A.view('${k}')">${l}</button>`).join('');
  if(!(ready.plan&&ready.rulesets)){app.innerHTML=`<div class="center card"><p>Laden…</p>${UI.slow?'<p class="mut">Dit duurt lang. De eerste keer is internet nodig. Controleer je verbinding.</p>':''}</div>`;return}
- app.innerHTML={vandaag:vVandaag,plan:vPlan,regels:vRegels,overzicht:vOverzicht}[UI.view]()+(UI.msg?`<div class="toast">${esc(UI.msg)}</div>`:'');
+ app.innerHTML={vandaag:vVandaag,plan:vPlan,regels:vRegels,rapport:vRapport,overzicht:vOverzicht}[UI.view]()+(UI.msg?`<div class="toast">${esc(UI.msg)}</div>`:'');
  if(sn)restore(sn);
 }
 window.addEventListener('online',()=>render());window.addEventListener('offline',()=>render());
