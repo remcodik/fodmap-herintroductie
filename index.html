@@ -232,7 +232,7 @@ function dayStatus(date,row){
 <!-- ============ APP (Firebase + weergave) ============ -->
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getFirestore,doc,collection,setDoc,onSnapshot,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig={
@@ -299,7 +299,6 @@ function startListen(){
 function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}}}
 
 /* ---------- inloggen ---------- */
-getRedirectResult(auth).catch(e=>{UI.authErr=e.code||String(e);render()});
 onAuthStateChanged(auth,u=>{
  if(u){
   if(!u.emailVerified){UI.authErr='Dit account is niet geverifieerd';signOut(auth);return}
@@ -309,11 +308,17 @@ onAuthStateChanged(auth,u=>{
 });
 async function login(){
  UI.authErr='';
+ const ua=navigator.userAgent||'';
+ const inApp=(/iPhone|iPad|iPod/.test(ua)&&!/Safari\//.test(ua))||/FBAN|FBAV|Instagram|WhatsApp|Line\//.test(ua);
+ if(inApp){UI.authErr='Open deze pagina in Safari of Chrome en niet in een andere app (zoals WhatsApp). Kopieer de link en plak hem in Safari.';render();return}
  const p=new GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
  try{await signInWithPopup(auth,p)}
  catch(e){
-  if(['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/web-storage-unsupported'].includes(e.code)){try{await signInWithRedirect(auth,p);return}catch(e2){e=e2}}
-  if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request'){UI.authErr=(e.code||e.message);render()}
+  if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')return;
+  if(e.code==='auth/popup-blocked')UI.authErr='De pop-up werd geblokkeerd. Sta pop-ups toe voor deze site (iPhone: Instellingen > Apps > Safari > Pop-ups blokkeren uit) en probeer opnieuw.';
+  else if(e.code==='auth/operation-not-supported-in-this-environment'||e.code==='auth/web-storage-unsupported')UI.authErr='Inloggen werkt niet in deze omgeving. Open de pagina gewoon in Safari (niet vanaf het beginscherm of uit een andere app).';
+  else UI.authErr=(e.code||e.message);
+  render();
  }
 }
 
