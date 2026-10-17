@@ -419,7 +419,6 @@ function issuesHtml(v){
 function tryApply(next,what){
  const v=validate(next);
  if(v.E.length){alert(`${what} niet toegestaan:\n\n- `+v.E.join('\n- '));return false}
- if(v.W.length&&!confirm(`${what}: let op\n\n- `+v.W.join('\n- ')+'\n\nToch doorvoeren?'))return false;
  writePlan(next);return true;
 }
 
