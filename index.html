@@ -147,10 +147,18 @@ const ACCENT_PRESETS=[
   {n:'Antraciet',v:'#37474f',f:'#fff'},
 ];
 function getTheme(){try{return JSON.parse(localStorage.getItem(THEME_KEY)||'{}')}catch(e){return{}}}
+function hexRgb(h){const n=parseInt(h.replace('#',''),16);return`${(n>>16)&255},${(n>>8)&255},${n&255}`}
 function applyTheme(t){
   const r=document.documentElement;
   r.style.setProperty('--accent',t.accent||'#1565c0');
   r.style.setProperty('--accent-fg',t.accentFg||'#fff');
+  const set=(k,v)=>v?r.style.setProperty(k,v):r.style.removeProperty(k);
+  set('--bg',t.bg);
+  set('--card',t.card);
+  t.card?r.style.setProperty('--card-rgb',hexRgb(t.card)):r.style.removeProperty('--card-rgb');
+  set('--fg',t.fg);
+  t.fg?r.style.setProperty('--fg-rgb',hexRgb(t.fg)):r.style.removeProperty('--fg-rgb');
+  set('--ln',t.ln);
 }
 function saveTheme(t){try{localStorage.setItem(THEME_KEY,JSON.stringify(t))}catch(e){}; applyTheme(t);}
 applyTheme(getTheme());
@@ -523,7 +531,8 @@ const A={
  restore(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doRestore(r.result);r.readAsText(f);inp.value=''},
  goto(d){UI.date=d;UI.view='vandaag';render(true)},
  setAccent(v,f){saveTheme({...getTheme(),accent:v,accentFg:f});render(true)},
- resetTheme(){try{localStorage.removeItem(THEME_KEY)}catch(e){}; applyTheme({});render(true);}
+ setThemeColor(prop,value){saveTheme({...getTheme(),[prop]:value})},
+ resetTheme(){try{localStorage.removeItem(THEME_KEY)}catch(e){};['--accent','--accent-fg','--bg','--card','--card-rgb','--fg','--fg-rgb','--ln'].forEach(k=>document.documentElement.style.removeProperty(k));applyTheme({});render(true);}
 };
 window.A=A;
 
@@ -674,18 +683,36 @@ function vDraft(){
   h+=`<tr><td>${esc(r.term)}</td><td><select onchange="A.draftSet(${i},'status',this.value)">${['rood','beperkt','groen'].map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input value="${esc(r.limit||'')}" onchange="A.draftSet(${i},'limit',this.value)" style="width:110px"></td><td><button class="dng" onclick="A.draftDel(${i})">✕</button></td></tr>`});
  return h+`</table><div class="row"><button class="pri" onclick="A.draftSave()">Opslaan als nieuwe versie</button><button onclick="A.draftCancel()">Annuleren</button></div></div>`;
 }
+function cpick(prop,dflt,label){
+ const v=getTheme()[prop]||dflt;
+ return`<label style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut)">${label}<input type="color" value="${v}" onchange="A.setThemeColor('${prop}',this.value)" style="width:48px;height:36px;padding:2px;border-radius:8px;cursor:pointer;border:1px solid var(--ln)"></label>`;
+}
 function vWeergave(){
- const cur=getTheme().accent||'#1565c0';
+ const t=getTheme();const cur=t.accent||'#1565c0';
  let h=`<div class="card"><h2>Weergave</h2>
- <p class="mut">Kies een accentkleur voor knoppen en de navigatie.</p>
- <div class="banner" style="margin-top:8px">⚠️ <b>Gereserveerde kleuren:</b> rood, groen en oranje zijn voorbehouden aan de voedselstatus (niet toegestaan / toegestaan / beperkt). Kies deze niet als accentkleur.</div>
- <p style="font-size:13px;color:var(--mut);margin:4px 0 6px">Accentkleur knoppen &amp; navigatie</p>
+ <div class="banner" style="margin-top:4px">⚠️ <b>Gereserveerd:</b> rood, groen en oranje zijn voorbehouden aan voedselstatus (niet/beperkt/toegestaan). Gebruik ze niet als accentkleur.</div>
+ <p style="font-size:13px;color:var(--mut);margin:10px 0 6px"><b>Accentkleur</b> — knoppen &amp; actieve navigatie</p>
  <div class="row" style="flex-wrap:wrap;gap:8px">`;
  ACCENT_PRESETS.forEach(p=>{
   const sel=cur===p.v;
   h+=`<button onclick="A.setAccent('${p.v}','${p.f}')" style="background:${p.v};color:${p.f};border-color:${p.v};flex:none;padding:6px 14px;min-height:36px${sel?';outline:3px solid '+p.v+';outline-offset:3px':''}">${sel?'✓ ':''}${p.n}</button>`;
  });
- h+=`</div><div class="row" style="margin-top:8px"><button onclick="A.resetTheme()">Standaard herstellen</button></div></div>`;
+ h+=`</div>
+ <p style="font-size:13px;color:var(--mut);margin:14px 0 6px"><b>Secties (kaarten)</b></p>
+ <div class="row" style="gap:20px;flex-wrap:wrap">
+  ${cpick('card','#ffffff','Kaart achtergrond')}
+  ${cpick('ln','#dde3da','Kaart rand')}
+ </div>
+ <p style="font-size:13px;color:var(--mut);margin:14px 0 6px"><b>Pagina</b></p>
+ <div class="row" style="gap:20px;flex-wrap:wrap">
+  ${cpick('bg','#f6f7f4','Pagina achtergrond')}
+ </div>
+ <p style="font-size:13px;color:var(--mut);margin:14px 0 6px"><b>Tekst</b></p>
+ <div class="row" style="gap:20px;flex-wrap:wrap">
+  ${cpick('fg','#1d2a1d','Hoofdtekst')}
+ </div>
+ <p class="mut" style="margin-top:8px;font-size:12px">Kleurinstellingen overschrijven ook de donkere modus.</p>
+ <div class="row" style="margin-top:10px"><button onclick="A.resetTheme()">Alles herstellen naar standaard</button></div></div>`;
  return h;
 }
 function vOverzicht(){
