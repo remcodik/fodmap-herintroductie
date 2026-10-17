@@ -546,8 +546,7 @@ const A={
  /* uitkomsten */
  setOutcome(blockId,val){
   if(!val)return;const b=ST.plan.blocks.find(x=>x.id===blockId);if(!b)return;
-  let portion='';
-  if(val==='drempel'){portion=prompt('Welke portie kun je verdragen? (bijv. ½ portie)','kleine portie');if(portion===null){render(true);return}}
+  const portion=val==='drempel'?'kleine portie':'';
   setDoc(ref('outcomes','o'+Date.now()),{blockId,name:b.name,keys:b.keys,status:val,portion,validFrom:today(),createdAt:Date.now()}).catch(fail);
   toast('Uitkomst opgeslagen, geldt vanaf vandaag');
  },
