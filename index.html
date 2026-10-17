@@ -9,7 +9,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#006064">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <title>FODMaP Herintroductie</title>
 <style>
@@ -96,6 +96,7 @@ main{padding:12px;max-width:760px;margin:0 auto;padding-bottom:60px}
 .mut{color:var(--mut);font-size:13px}.err{color:var(--r)}.warn{color:#b26a00}
 table{width:100%;border-collapse:collapse}
 td,th{border-bottom:1px solid var(--ln);padding:4px 6px;text-align:left;vertical-align:top}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
 
 .step{display:flex;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--ln)}
 .step .d{width:92px;flex:none}.step .t{flex:1}
@@ -380,7 +381,7 @@ function dayStatus(date,row){
 <!-- ============ APP (Firebase + weergave) ============ -->
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getFirestore,doc,collection,setDoc,onSnapshot,writeBatch} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig={
@@ -446,6 +447,7 @@ function startListen(){
 function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}}}
 
 /* ---------- inloggen ---------- */
+getRedirectResult(auth).catch(()=>{});
 onAuthStateChanged(auth,u=>{
  if(u){
   if(!u.emailVerified){UI.authErr='Dit account is niet geverifieerd';signOut(auth);return}
@@ -462,8 +464,11 @@ async function login(){
  try{await signInWithPopup(auth,p)}
  catch(e){
   if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')return;
-  if(e.code==='auth/popup-blocked')UI.authErr='De pop-up werd geblokkeerd. Sta pop-ups toe voor deze site (iPhone: Instellingen > Apps > Safari > Pop-ups blokkeren uit) en probeer opnieuw.';
-  else if(e.code==='auth/operation-not-supported-in-this-environment'||e.code==='auth/web-storage-unsupported')UI.authErr='Inloggen werkt niet in deze omgeving. Open de pagina gewoon in Safari (niet vanaf het beginscherm of uit een andere app).';
+  if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment'){
+   try{await signInWithRedirect(auth,p)}catch(e2){UI.authErr=(e2.code||e2.message);render()}
+   return;
+  }
+  if(e.code==='auth/web-storage-unsupported')UI.authErr='Inloggen werkt niet in deze omgeving. Open de pagina gewoon in Safari (niet vanaf het beginscherm of uit een andere app).';
   else UI.authErr=(e.code||e.message);
   render();
  }
@@ -725,7 +730,7 @@ function vWeergave(){
 }
 function vOverzicht(){
  const P=ST.plan,sched=compute(P),t=today();
- let h=backupBanner()+'<div class="card"><h2>Resultaat per FODMaP</h2><table><tr><th>Blok</th><th>Data</th><th>Uitkomst</th></tr>';
+ let h=backupBanner()+'<div class="card"><h2>Resultaat per FODMaP</h2><div class="tbl-wrap"><table><tr><th>Blok</th><th>Data</th><th>Uitkomst</th></tr>';
  P.blocks.forEach((b,bi)=>{
   const tests=sched.filter(r=>r.bi===bi&&r.kind==='test');
   let mx=null,missing=false;
@@ -734,8 +739,8 @@ function vOverzicht(){
   const cur=outcomesAt(t).find(o=>o.blockId===b.id);
   const lab={verdraagt:'verdraagt',drempel:'drempel',niet:'voorlopig niet'};
   h+=`<tr><td>${esc(b.name)}</td><td class="${mx!==null&&mx>=P.threshold?'err':''}">${auto}</td><td>${cur?`<b>${lab[cur.status]}</b>${cur.portion?' ('+esc(cur.portion)+')':''}<br>`:''}<select onchange="A.setOutcome('${b.id}',this.value)"><option value="">${cur?'wijzig…':'kies…'}</option><option value="verdraagt">verdraagt</option><option value="drempel">drempel: kleine portie</option><option value="niet">voorlopig niet</option></select></td></tr>`});
- h+='</table><p class="mut">Een uitkomst werkt door in de controle van eten, vanaf de dag dat je hem kiest. Pas definitief afkeuren na herhaling: stress, slaap en eten buiten de test kunnen klachten geven.</p></div>';
- if(ST.outcomes.length)h+=`<div class="card"><h2>Historie uitkomsten</h2><table>${[...ST.outcomes].sort((a,b)=>b.validFrom.localeCompare(a.validFrom)||(b.createdAt||0)-(a.createdAt||0)).map(o=>`<tr><td>${fmt(o.validFrom)}</td><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td></tr>`).join('')}</table></div>`;
+ h+='</table></div><p class="mut">Een uitkomst werkt door in de controle van eten, vanaf de dag dat je hem kiest. Pas definitief afkeuren na herhaling: stress, slaap en eten buiten de test kunnen klachten geven.</p></div>';
+ if(ST.outcomes.length)h+=`<div class="card"><h2>Historie uitkomsten</h2><div class="tbl-wrap"><table>${[...ST.outcomes].sort((a,b)=>b.validFrom.localeCompare(a.validFrom)||(b.createdAt||0)-(a.createdAt||0)).map(o=>`<tr><td>${fmt(o.validFrom)}</td><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td></tr>`).join('')}</table></div>`;
  h+=vWeergave();
  h+=`<div class="card"><h2>Back-up en herstel</h2><p class="mut">Je data staat in de cloud. Een back-up is een extra kopie voor jezelf: een Excel-bestand om te lezen en een herstelbestand.${ST.plan.lastBackup?' Laatste back-up: '+new Date(ST.plan.lastBackup).toLocaleString('nl-NL')+'.':''}</p>
  <div class="row"><button class="pri" onclick="A.backup()">Back-up maken</button></div>
@@ -756,7 +761,7 @@ function vRapport(){
  let h=`<div class="card"><h2>Voortgang</h2><div style="background:var(--ln);border-radius:8px;height:14px;overflow:hidden;margin-bottom:8px"><div style="background:var(--accent);height:100%;width:${pct}%;transition:width .4s"></div></div><p class="mut">${done} van ${P.blocks.length} blokken afgerond · ${pct}%</p></div>`;
 
  /* resultaten per blok */
- h+='<div class="card"><h2>Resultaten per blok</h2><table><tr><th>Blok</th><th>Testdagen &amp; scores</th><th>Uitkomst</th></tr>';
+ h+='<div class="card"><h2>Resultaten per blok</h2><div class="tbl-wrap"><table><tr><th>Blok</th><th>Testdagen &amp; scores</th><th>Uitkomst</th></tr>';
  P.blocks.forEach((b,bi)=>{
   const tests=sched.filter(r=>r.bi===bi&&r.kind==='test');
   const cur=outcomesAt(t).find(o=>o.blockId===b.id);
@@ -773,7 +778,7 @@ function vRapport(){
   const uitkomst=cur?`<span class="badge ${clMap[cur.status]}">${labMap[cur.status]}</span>`:'<span class="mut">—</span>';
   h+=`<tr><td><b>${esc(b.name)}</b><br><span class="mut">${esc(b.keys)}</span></td><td>${dagsCols}</td><td>${uitkomst}</td></tr>`;
  });
- h+='</table></div>';
+ h+='</table></div></div>';
 
  /* klachtenverloop grafiek */
  const days30=[];for(let i=29;i>=0;i--)days30.push(addDays(t,-i));
