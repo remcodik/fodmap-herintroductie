@@ -142,9 +142,22 @@ const ACCENT_PRESETS=[
   {n:'Blauw',v:'#1565c0',f:'#fff'},
   {n:'Lichtblauw',v:'#0288d1',f:'#fff'},
   {n:'Teal',v:'#00838f',f:'#fff'},
+  {n:'Indigo',v:'#283593',f:'#fff'},
   {n:'Paars',v:'#6a1b9a',f:'#fff'},
+  {n:'Roze',v:'#c2185b',f:'#fff'},
+  {n:'Lichtroze',v:'#e91e63',f:'#fff'},
+  {n:'Bruin',v:'#4e342e',f:'#fff'},
+  {n:'Warm bruin',v:'#795548',f:'#fff'},
+  {n:'Beige',v:'#8d6e63',f:'#fff'},
+  {n:'Geel',v:'#f9a825',f:'#212121'},
   {n:'Grijs',v:'#546e7a',f:'#fff'},
   {n:'Antraciet',v:'#37474f',f:'#fff'},
+  {n:'Zwart',v:'#212121',f:'#fff'},
+];
+const ACCENT_RESERVED=[
+  {n:'Rood',v:'#c62828',f:'#fff'},
+  {n:'Groen',v:'#2e7d32',f:'#fff'},
+  {n:'Oranje',v:'#ef8f00',f:'#fff'},
 ];
 function getTheme(){try{return JSON.parse(localStorage.getItem(THEME_KEY)||'{}')}catch(e){return{}}}
 function hexRgb(h){const n=parseInt(h.replace('#',''),16);return`${(n>>16)&255},${(n>>8)&255},${n&255}`}
@@ -689,15 +702,14 @@ function cpick(prop,dflt,label){
 }
 function vWeergave(){
  const t=getTheme();const cur=t.accent||'#1565c0';
+ const isReserved=ACCENT_RESERVED.some(p=>p.v===cur);
+ const swatches=(list)=>list.map(p=>{const sel=cur===p.v;return`<button onclick="A.setAccent('${p.v}','${p.f}')" style="background:${p.v};color:${p.f};border-color:${p.v};flex:none;padding:6px 14px;min-height:36px${sel?';outline:3px solid '+p.v+';outline-offset:3px':''}">${sel?'✓ ':''}${p.n}</button>`}).join('');
  let h=`<div class="card"><h2>Weergave</h2>
- <div class="banner" style="margin-top:4px">⚠️ <b>Gereserveerd:</b> rood, groen en oranje zijn voorbehouden aan voedselstatus (niet/beperkt/toegestaan). Gebruik ze niet als accentkleur.</div>
- <p style="font-size:13px;color:var(--mut);margin:10px 0 6px"><b>Accentkleur</b> — knoppen &amp; actieve navigatie</p>
- <div class="row" style="flex-wrap:wrap;gap:8px">`;
- ACCENT_PRESETS.forEach(p=>{
-  const sel=cur===p.v;
-  h+=`<button onclick="A.setAccent('${p.v}','${p.f}')" style="background:${p.v};color:${p.f};border-color:${p.v};flex:none;padding:6px 14px;min-height:36px${sel?';outline:3px solid '+p.v+';outline-offset:3px':''}">${sel?'✓ ':''}${p.n}</button>`;
- });
- h+=`</div>
+ <p style="font-size:13px;color:var(--mut);margin:6px 0 6px"><b>Accentkleur</b> — knoppen &amp; actieve navigatie</p>
+ <div class="row" style="flex-wrap:wrap;gap:8px">${swatches(ACCENT_PRESETS)}</div>
+ <p style="font-size:13px;color:var(--mut);margin:12px 0 4px">Gereserveerde kleuren <span style="font-weight:400">(ook gebruikt voor voedselstatus)</span></p>
+ <div class="row" style="flex-wrap:wrap;gap:8px">${swatches(ACCENT_RESERVED)}</div>
+ ${isReserved?`<div class="banner" style="margin-top:8px">⚠️ Je hebt een gereserveerde kleur gekozen. Deze kleur wordt ook gebruikt voor voedselstatus-badges — dit kan verwarrend zijn.</div>`:''}
  <p style="font-size:13px;color:var(--mut);margin:14px 0 6px"><b>Secties (kaarten)</b></p>
  <div class="row" style="gap:20px;flex-wrap:wrap">
   ${cpick('card','#ffffff','Kaart achtergrond')}
