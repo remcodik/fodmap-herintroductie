@@ -502,7 +502,8 @@ const A={
  live(){
   const t=$('#etext').value,out=$('#elive');if(!t.trim()){out.innerHTML='';return}
   const row=rowFor(UI.date),st=dayStatus(UI.date,row),c=checkEntry(t,row,UI.date,st.blocked);
-  out.innerHTML=`<span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span>`;
+  const doseHint=c.testHits.length&&row&&row.dose?` <span class="warn">⚠ Voorgeschreven portie: <b>${esc(row.dose)}</b></span>`:'';
+  out.innerHTML=`<span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span>${doseHint}`;
  },
  saveDay(){
   const scores=SYM.map((_,i)=>Number($('#s'+i).value));
@@ -644,7 +645,7 @@ function vVandaag(){
  const all=ST.entries.filter(e=>e.date===d).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
  const ents=all.filter(e=>!e.deleted),gone=all.filter(e=>e.deleted),now=new Date();
  h+=`<div class="card"><h2>Eten</h2><div class="row"><input id="etime" type="time" value="${pad(now.getHours())}:${pad(now.getMinutes())}" style="flex:none;min-width:0"><input id="etext" placeholder="Wat gegeten? (of ingrediënten)" oninput="A.live()"><input id="eqty" placeholder="Hoeveel?"><button class="pri" onclick="A.addEntry()">Toevoegen</button></div><div id="elive" class="mut"></div>`;
- if(ents.length){h+='<table>';ents.forEach(e=>{const c=checkEntry(e.text,row,d,st.blocked);h+=`<tr><td>${esc(e.time||'')}</td><td>${esc(e.text)}${e.qty?` <span class="mut">(${esc(e.qty)})</span>`:''}<br><span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span></td><td style="white-space:nowrap"><button onclick="A.editEntry('${e.id}')">✎</button> <button class="dng" onclick="A.delEntry('${e.id}')">✕</button></td></tr>`});h+='</table>'}
+ if(ents.length){h+='<table>';ents.forEach(e=>{const c=checkEntry(e.text,row,d,st.blocked);const doseWarn=c.testHits.length&&row&&row.dose?` <span class="warn">⚠ portie: ${esc(row.dose)}</span>`:'';h+=`<tr><td>${esc(e.time||'')}</td><td>${esc(e.text)}${e.qty?` <span class="mut">(${esc(e.qty)})</span>`:''}<br><span class="badge ${c.v}">${esc(c.label)}</span> <span class="mut">${hitStr(c.hits)}</span>${doseWarn}</td><td style="white-space:nowrap"><button onclick="A.editEntry('${e.id}')">✎</button> <button class="dng" onclick="A.delEntry('${e.id}')">✕</button></td></tr>`});h+='</table>'}
  if(gone.length){h+=`<details><summary class="mut">Verwijderd (${gone.length})</summary>${gone.map(e=>`<div class="row"><span style="flex:1">${esc(e.time||'')} ${esc(e.text)}</span><button onclick="A.undelEntry('${e.id}')">Herstel</button></div>`).join('')}</details>`}
  h+='</div>';
  const rec=ST.days[d]||{scores:[],factors:[],note:''};
