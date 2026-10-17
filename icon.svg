@@ -1,0 +1,34 @@
+<svg width="512" height="512" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#4ecdc4"/>
+      <stop offset="100%" stop-color="#006064"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- FODMaP title -->
+  <text x="128" y="48" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="800" fill="rgba(255,255,255,0.96)" letter-spacing="2">FODMaP</text>
+  <!-- stem/base -->
+  <rect x="112" y="208" width="32" height="12" rx="6" fill="rgba(255,255,255,0.9)"/>
+  <ellipse cx="128" cy="223" rx="30" ry="7" fill="rgba(255,255,255,0.8)"/>
+  <!-- bowl body -->
+  <path d="M52 148 Q52 214 128 214 Q204 214 204 148 Z" fill="white"/>
+  <!-- bowl rim -->
+  <ellipse cx="128" cy="148" rx="76" ry="14" fill="white"/>
+  <!-- broccoli -->
+  <circle cx="105" cy="104" r="16" fill="#43a047"/>
+  <circle cx="90" cy="116" r="11" fill="#2e7d32"/>
+  <circle cx="120" cy="114" r="11" fill="#388e3c"/>
+  <rect x="101" y="124" width="8" height="24" rx="4" fill="#1b5e20"/>
+  <!-- carrot -->
+  <path d="M147 145 L155 95" stroke="#f57c00" stroke-width="11" stroke-linecap="round"/>
+  <path d="M154 93 Q148 76 154 70 Q162 76 154 93" fill="#388e3c"/>
+  <path d="M150 93 Q144 80 150 75 Q156 80 150 93" fill="#2e7d32"/>
+  <!-- aubergine -->
+  <ellipse cx="180" cy="118" rx="13" ry="20" fill="#7b1fa2" transform="rotate(-12 180 118)"/>
+  <ellipse cx="180" cy="118" rx="8" ry="14" fill="#9c27b0" transform="rotate(-12 180 118)"/>
+  <path d="M177 99 Q173 84 178 78" stroke="#2e7d32" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <!-- steam -->
+  <path d="M100 138 Q96 126 100 115" stroke="rgba(255,255,255,0.5)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M128 132 Q124 120 128 109" stroke="rgba(255,255,255,0.45)" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>
