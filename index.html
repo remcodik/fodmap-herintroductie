@@ -235,7 +235,7 @@ const newBlock=k=>Object.assign({id:uid()},TEMPL[k]());
 const defaultBlocks=()=>['lactose','fructose','mannitol_bloemkool','sorbitol','fructanen_brochure','gos'].map(newBlock);
 
 /* ---------- toestand (wordt gevuld vanuit Firestore) ---------- */
-let ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}};
+let ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{},settings:{}};
 function normPlan(d){d=d||{};return{startDate:d.startDate||'',restDays:Array.isArray(d.restDays)?d.restDays:[],threshold:d.threshold??3,blocks:Array.isArray(d.blocks)?d.blocks:[],lastBackup:d.lastBackup||0}}
 const liveEntries=()=>ST.entries.filter(e=>!e.deleted);
 
@@ -442,10 +442,11 @@ function startListen(){
  });
  sub(cref('entries'),s=>{pend.entries=s.metadata.hasPendingWrites;ST.entries=s.docs.map(d=>({id:d.id,...d.data()}));softRender()});
  sub(cref('days'),s=>{pend.days=s.metadata.hasPendingWrites;ST.days={};s.docs.forEach(d=>ST.days[d.id]=d.data());softRender()});
+ sub(ref('settings','main'),s=>{pend.settings=s.metadata.hasPendingWrites;ST.settings=s.exists()?s.data():{};softRender()});
  sub(cref('outcomes'),s=>{pend.outcomes=s.metadata.hasPendingWrites;ST.outcomes=s.docs.map(d=>({id:d.id,...d.data()}));softRender()});
  setTimeout(()=>{if(!(ready.plan&&ready.rulesets)){UI.slow=true;render()}},8000);
 }
-function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{}}}
+function resetST(){ST={plan:{startDate:'',restDays:[],threshold:3,blocks:[],lastBackup:0},rulesets:[],outcomes:[],entries:[],days:{},settings:{}}}
 
 /* ---------- inloggen ---------- */
 getRedirectResult(auth).catch(e=>{if(e&&e.code&&e.code!=='auth/popup-closed-by-user'){UI.authErr='Inloggen mislukt. Open de app in Safari of Chrome — niet via WhatsApp of een andere app.';render()}});
@@ -557,6 +558,12 @@ const A={
   toast('Uitkomst opgeslagen, geldt vanaf vandaag');
  },
  /* back-up en herstel */
+ setClaudeUrl(){
+  const el=document.getElementById('claudeUrl');if(!el)return;const v=el.value.trim();
+  if(v&&!/^https:\/\/claude\.ai\/[^\s]+$/.test(v)){toast('Dit is geen geldige claude.ai-link');return}
+  setDoc(ref('settings','main'),{claudeUrl:v,updatedAt:Date.now()},{merge:true}).catch(fail);
+  toast(v?'Link opgeslagen':'Link verwijderd');
+ },
  backup(){doBackup()},
  restore(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>doRestore(r.result);r.readAsText(f);inp.value=''},
  goto(d){UI.date=d;UI.view='vandaag';render(true)},
@@ -632,9 +639,14 @@ function backupBanner(){
  if(lb&&days<=7)return'';
  return`<div class="banner">${lb?`Laatste back-up is ${days} dagen oud.`:'Er is nog nooit een back-up gemaakt.'} Maak er een bij <a href="#" onclick="A.view('overzicht');return false">Overzicht</a>.</div>`;
 }
+function checkCard(){
+ const u=(ST.settings&&ST.settings.claudeUrl)||'';
+ if(!/^https:\/\/claude\.ai\//.test(u))return`<div class="card"><p class="mut" style="margin:0">Product checken met een foto: stel eerst de link naar je Claude-project in bij <a href="#" onclick="A.view('overzicht');return false">Overzicht</a>.</p></div>`;
+ return`<div class="card"><a href="${esc(u)}" target="_blank" rel="noopener"><button class="pri" style="width:100%">Product checken (foto in Claude)</button></a></div>`;
+}
 function vVandaag(){
  const d=UI.date,row=rowFor(d),st=dayStatus(d,row);
- let h=backupBanner()+`<div class="card"><div class="row"><button onclick="A.day(-1)">◀</button><input type="date" value="${d}" onchange="A.setDate(this.value)"><button onclick="A.day(1)">▶</button><button onclick="A.setDate('${today()}')">Vandaag</button></div></div>`;
+ let h=backupBanner()+checkCard()+`<div class="card"><div class="row"><button onclick="A.day(-1)">◀</button><input type="date" value="${d}" onchange="A.setDate(this.value)"><button onclick="A.day(1)">▶</button><button onclick="A.setDate('${today()}')">Vandaag</button></div></div>`;
  h+=`<div class="status ${st.level}"><h2>${esc(st.title)}</h2>`;
  if(row&&!row.rest)h+=`<p><b>${esc(row.block.name)}</b> ${kindBadge(row.kind)} <span class="mut">dag ${row.si+1} van ${row.block.steps.length}</span></p>`;
  if(row&&row.kind==='test')h+=`<p>Portie: <b>${esc(row.dose)}</b></p>`;
@@ -743,6 +755,7 @@ function vOverzicht(){
  h+='</table></div><p class="mut">Een uitkomst werkt door in de controle van eten, vanaf de dag dat je hem kiest. Pas definitief afkeuren na herhaling: stress, slaap en eten buiten de test kunnen klachten geven.</p></div>';
  if(ST.outcomes.length)h+=`<div class="card"><h2>Historie uitkomsten</h2><div class="tbl-wrap"><table>${[...ST.outcomes].sort((a,b)=>b.validFrom.localeCompare(a.validFrom)||(b.createdAt||0)-(a.createdAt||0)).map(o=>`<tr><td>${fmt(o.validFrom)}</td><td>${esc(o.name)}</td><td>${esc(o.status)}${o.portion?' ('+esc(o.portion)+')':''}</td></tr>`).join('')}</table></div>`;
  h+=vWeergave();
+ h+=`<div class="card"><h2>Claude-project voor foto's</h2><p class="mut">Open je eigen Claude-project (FODMAP Dieet), start daar een chat en kopieer de link uit de adresbalk of via Delen. Plak hem hier één keer. De knop Product checken op Vandaag opent dan dit project.</p><div class="row"><input id="claudeUrl" type="url" placeholder="https://claude.ai/project/…" value="${esc((ST.settings&&ST.settings.claudeUrl)||'')}" style="flex:1;min-width:0"><button class="pri" onclick="A.setClaudeUrl()">Opslaan</button></div></div>`;
  h+=`<div class="card"><h2>Back-up en herstel</h2><p class="mut">Je data staat in de cloud. Een back-up is een extra kopie voor jezelf: een Excel-bestand om te lezen en een herstelbestand.${ST.plan.lastBackup?' Laatste back-up: '+new Date(ST.plan.lastBackup).toLocaleString('nl-NL')+'.':''}</p>
  <div class="row"><button class="pri" onclick="A.backup()">Back-up maken</button></div>
  <div class="row"><label class="mut">Herstellen uit herstelbestand (.json), voegt samen en verwijdert niets: <input type="file" accept="application/json,.json" onchange="A.restore(this)"></label></div></div>
